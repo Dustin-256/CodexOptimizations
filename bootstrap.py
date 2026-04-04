@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 
-ROOT = Path(__file__).resolve().parent.parent
+BASE_DIR = Path.cwd()
 RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main"
 SKILLS = (
     "deep-interview",
@@ -18,10 +18,10 @@ SKILLS = (
     "plan-modifier",
     "resume-last-task",
 )
-AGENTS_PATH = ROOT / "AGENTS.md"
-AGENTS_BAK_PATH = ROOT / "AGENTS.md.bak"
-AII_PATH = ROOT / "aii"
-GITIGNORE_PATH = ROOT / ".gitignore"
+AGENTS_PATH = BASE_DIR / "AGENTS.md"
+AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
+AII_PATH = BASE_DIR / "aii"
+GITIGNORE_PATH = BASE_DIR / ".gitignore"
 BACKUP_HEADER = (
     "THIS FILE IS TO NOT BE USED, IT IS SIMPLY A BACKUP OF AGENTS.MD "
     "ALWAYS REFER TO AGENTS.MD and ignore this."
@@ -54,7 +54,7 @@ STATIC_FILES = {
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
 
-Use `python aii/bootstrap.py` to recreate the baseline scaffold if needed.
+Use `python bootstrap.py` to recreate the baseline scaffold if needed.
 """,
     "aii/interviews/.gitkeep": "",
     "aii/plans/.gitkeep": "",
@@ -98,14 +98,14 @@ def build_remote_files() -> dict[str, str]:
 
 
 def write_file(relative_path: str, content: str, force: bool) -> None:
-    path = ROOT / relative_path
+    path = BASE_DIR / relative_path
     if path.exists() and not force:
         raise FileExistsError(
             f"{relative_path} already exists. Re-run with --force to overwrite."
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
-    print(f"wrote {relative_path}")
+    print(f"wrote {path}")
 
 
 def backup_agents() -> None:
@@ -113,7 +113,7 @@ def backup_agents() -> None:
         return
     backup_content = f"{BACKUP_HEADER}\n\n{AGENTS_PATH.read_text(encoding='utf-8')}"
     AGENTS_BAK_PATH.write_text(backup_content, encoding="utf-8")
-    print(f"wrote {AGENTS_BAK_PATH.relative_to(ROOT)}")
+    print(f"wrote {AGENTS_BAK_PATH}")
 
 
 def restore_agents_backup() -> None:

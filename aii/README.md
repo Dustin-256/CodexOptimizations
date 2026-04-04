@@ -8,4 +8,4 @@
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
 
-Use `python aii/bootstrap.py` to recreate the baseline scaffold if needed.
+Use `python bootstrap.py` to recreate the baseline scaffold if needed.
