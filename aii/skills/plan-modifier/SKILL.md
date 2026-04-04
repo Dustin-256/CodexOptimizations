@@ -11,8 +11,20 @@ This skill is for editing existing plans only. It should not create new plans fr
 
 ## Workflow
 
-### 1) Select the plan
-Ask for the plan name first.
+### 1) Resolve the plan target from context first
+Before asking for anything, determine whether the plan target is already clear from:
+
+- the user's most recent message
+- the immediately preceding chat context in this conversation
+- `aii/metadata/state.yaml` if it points to a resumable or recently active plan artifact
+
+Prefer the current conversation over stale metadata when they disagree.
+
+If the user is clearly continuing from a recent `planner`, `plan-executor`, or `resume-last-task` handoff, reuse that plan name directly instead of asking for it again.
+
+If exactly one plan target is clearly implied, proceed with that target.
+
+If the signals conflict or the target is still ambiguous, ask a short clarifying question for the plan name instead of guessing.
 
 Load:
 
@@ -42,6 +54,8 @@ history: []
 ```
 
 Write metadata when modification starts, when user input is needed for non-obvious edits, and when the updated plan is saved.
+
+When modification starts from a conversation-driven handoff, ensure `target_name` and `target_path` match the plan artifact that was actually selected from chat context or metadata.
 
 ### 3) Read the current plan before proposing changes
 Use the existing plan as the source of truth for:
@@ -198,7 +212,10 @@ steps:
 ```
 
 ## Rules
-- Ask for the plan name first.
+- Check current chat context first, then recent task metadata, before asking for a plan name.
+- Reuse the implied plan automatically when the handoff from `planner`, `plan-executor`, or `resume-last-task` is clear.
+- If chat context and metadata disagree, prefer the active conversation and mention the conflict briefly only if it affects confidence.
+- Ask for the plan name only when the target remains ambiguous after checking both chat context and metadata.
 - Always read the current plan before changing it.
 - Edit plans in place only.
 - Obvious edits may be applied autonomously.

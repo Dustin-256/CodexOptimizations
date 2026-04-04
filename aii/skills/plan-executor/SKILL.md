@@ -11,8 +11,20 @@ This skill is for execution. It should not create new plans and it should not si
 
 ## Workflow
 
-### 1) Select the plan
-Ask for the plan name first.
+### 1) Resolve the plan target from context first
+Before asking for anything, determine whether the plan target is already clear from:
+
+- the user's most recent message
+- the immediately preceding chat context in this conversation
+- `aii/metadata/state.yaml` if it points to a resumable or recently active plan artifact
+
+Prefer the current conversation over stale metadata when they disagree.
+
+If the user is clearly continuing from a just-finished `planner` handoff or a recent paused execution session, reuse that plan name directly instead of asking for it again.
+
+If exactly one plan target is clearly implied, proceed with that target.
+
+If the signals conflict or the target is still ambiguous, ask a short clarifying question for the plan name instead of guessing.
 
 Load:
 
@@ -48,6 +60,8 @@ Write metadata:
 - when execution pauses for user input
 - when a blocker is recorded
 - when the plan completes
+
+When execution starts from a conversation-driven handoff, ensure `target_name` and `target_path` match the plan artifact that was actually selected from chat context or metadata.
 
 ### 3) Resume from persisted plan state
 Read the plan as the source of truth.
@@ -230,7 +244,10 @@ steps:
 ```
 
 ## Rules
-- Ask for the plan name first.
+- Check current chat context first, then recent task metadata, before asking for a plan name.
+- Reuse the implied plan automatically when the handoff from `planner`, `resume-last-task`, or an obvious follow-up execution request is clear.
+- If chat context and metadata disagree, prefer the active conversation and mention the conflict briefly only if it affects confidence.
+- Ask for the plan name only when the target remains ambiguous after checking both chat context and metadata.
 - Always read the current plan before changing it.
 - Persist `in_progress` state before doing execution work.
 - Persist completion or blocker results immediately after execution changes state.
