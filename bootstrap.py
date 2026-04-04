@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 from pathlib import Path
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
@@ -19,6 +21,7 @@ SKILLS = (
     "resume-last-task",
 )
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
+ENV_PATH = BASE_DIR / ".env"
 AGENTS_PATH = BASE_DIR / "AGENTS.md"
 AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
 AII_PATH = BASE_DIR / "aii"
@@ -66,6 +69,16 @@ It keeps planning and execution artifacts in one predictable place so work can b
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
 
+## Skill roles
+
+- `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
+- `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
+- `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
+- `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
+- `resume-last-task`: restores the most recent resumable task context from `aii/metadata/` and continues work.
+
+Typical flow: interview -> plan -> execute -> modify (if needed) -> resume later.
+
 ## How to use it
 
 1. Bootstrap the repo with `python3 bootstrap.py`.
@@ -103,6 +116,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Scaffold repo files only; do not symlink skills into ~/.codex/skills.",
     )
+    parser.add_argument(
+        "--webhook",
+        metavar="URL",
+        help="Persist Discord webhook URL to .env as codex_webhook for long-task completion reports.",
+    )
     return parser.parse_args()
 
 
@@ -110,6 +128,75 @@ def fetch_text(url: str) -> str:
     request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap"})
     with urlopen(request, timeout=30) as response:
         return response.read().decode("utf-8")
+
+
+def truncate_discord_message(message: str, limit: int = 2000) -> str:
+    if len(message) <= limit:
+        return message
+    return message[: limit - 3] + "..."
+
+
+def send_webhook_report(webhook_url: str | None, message: str) -> None:
+    if not webhook_url:
+        return
+
+    payload = json.dumps({"content": truncate_discord_message(message)}).encode("utf-8")
+    request = Request(
+        webhook_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "codex-optimizations-bootstrap",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=30):
+            pass
+    except URLError as exc:
+        print(f"warning: failed to send webhook report: {exc}")
+
+
+def load_codex_webhook(env_path: Path = ENV_PATH) -> str | None:
+    if not env_path.exists():
+        return None
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[len("export ") :].lstrip()
+        if not stripped.startswith("codex_webhook="):
+            continue
+        value = stripped.split("=", 1)[1].strip()
+        return value.strip("\"'")
+    return None
+
+
+def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
+    new_entry = f"codex_webhook={webhook_url}"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+
+    replaced = False
+    new_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        comparison = stripped
+        if comparison.startswith("export "):
+            comparison = comparison[len("export ") :].lstrip()
+        if comparison.startswith("codex_webhook="):
+            if not replaced:
+                new_lines.append(new_entry)
+                replaced = True
+            continue
+        new_lines.append(line)
+
+    if not replaced:
+        new_lines.append(new_entry)
+
+    env_path.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
+    print("updated .env with codex_webhook for long-task completion reports")
 
 
 def build_remote_files() -> dict[str, str]:
@@ -242,10 +329,26 @@ def uninstall() -> None:
 
 def main() -> None:
     args = parse_args()
-    if args.uninstall:
-        uninstall()
-        return
-    install(force=args.force, install_skills=not args.no_install_skills)
+    if args.webhook:
+        save_codex_webhook(args.webhook)
+    webhook_url = args.webhook or load_codex_webhook()
+    action = "uninstall" if args.uninstall else "install"
+    try:
+        if args.uninstall:
+            uninstall()
+        else:
+            install(force=args.force, install_skills=not args.no_install_skills)
+        send_webhook_report(
+            webhook_url,
+            f"✅ bootstrap.py {action} succeeded in `{BASE_DIR}`",
+        )
+    except Exception as exc:
+        send_webhook_report(
+            webhook_url,
+            f"❌ bootstrap.py {action} failed in `{BASE_DIR}` with "
+            f"`{type(exc).__name__}: {exc}`",
+        )
+        raise
 
 
 if __name__ == "__main__":

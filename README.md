@@ -39,6 +39,17 @@ Running the bootstrap creates or updates:
 
 It also updates `.gitignore` to keep generated workflow artifacts untracked.
 
+## Skill roles
+
+Installed skills are designed to work as a pipeline:
+- `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
+- `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
+- `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
+- `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
+- `resume-last-task`: restores the most recent resumable task context from `aii/metadata/` and continues work.
+
+Use them independently when needed, but the normal flow is interview -> plan -> execute -> modify (if needed) -> resume later.
+
 ## Requirements
 
 - Python 3.9+
@@ -68,6 +79,8 @@ Typical workflow:
   scaffold repository files only; skip `~/.codex/skills` symlinks
 - `--uninstall`:
   remove scaffolded content and restore `AGENTS.md` from `AGENTS.md.bak` when available
+- `--webhook URL`:
+  save `codex_webhook=URL` to `.env` for long-task completion reports (and bootstrap run reports)
 
 Examples:
 
@@ -83,6 +96,9 @@ python3 bootstrap.py --no-install-skills
 
 # Remove scaffold and restore AGENTS backup
 python3 bootstrap.py --uninstall
+
+# Save webhook to .env and report run status
+python3 bootstrap.py --webhook https://discord.com/api/webhooks/...
 ```
 
 ## Uninstall behavior
@@ -113,3 +129,4 @@ python3 bootstrap.py --uninstall
 - The bootstrap script fetches canonical `AGENTS.md` and skill definitions from this repository's `main` branch.
 - Existing `AGENTS.md` is backed up to `AGENTS.md.bak` before install.
 - If a target skill path in `~/.codex/skills` already exists and is not the expected symlink, `--force` is required.
+- Keep `.env` gitignored so `codex_webhook` remains local.

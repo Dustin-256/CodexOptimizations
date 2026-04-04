@@ -19,6 +19,16 @@ It keeps planning and execution artifacts in one predictable place so work can b
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
 
+## Skill roles
+
+- `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
+- `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
+- `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
+- `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
+- `resume-last-task`: restores the most recent resumable task context from `aii/metadata/` and continues work.
+
+Typical flow: interview -> plan -> execute -> modify (if needed) -> resume later.
+
 ## How to use it
 
 1. Bootstrap the repo with `python3 bootstrap.py`.
