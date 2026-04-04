@@ -7,3 +7,4 @@ aii/plans/*
 aii/metadata/*
 !aii/metadata/.gitkeep
 aii/__pycache__/bootstrap.cpython-312.pyc
+__pycache__/
