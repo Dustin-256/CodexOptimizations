@@ -1,118 +1,49 @@
 #!/usr/bin/env python3
-"""Bootstrap the local aii scaffold and write baseline instruction files."""
+"""Bootstrap or uninstall the local aii scaffold."""
 
 from __future__ import annotations
 
+import argparse
+import shutil
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent.parent
+RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main"
+SKILLS = (
+    "deep-interview",
+    "planner",
+    "plan-executor",
+    "plan-modifier",
+    "resume-last-task",
+)
+AGENTS_PATH = ROOT / "AGENTS.md"
+AGENTS_BAK_PATH = ROOT / "AGENTS.md.bak"
+AII_PATH = ROOT / "aii"
+GITIGNORE_PATH = ROOT / ".gitignore"
+BACKUP_HEADER = (
+    "THIS FILE IS TO NOT BE USED, IT IS SIMPLY A BACKUP OF AGENTS.MD "
+    "ALWAYS REFER TO AGENTS.MD and ignore this."
+)
+GITIGNORE_BLOCK_START = "# BEGIN aii bootstrap"
+GITIGNORE_BLOCK_END = "# END aii bootstrap"
+GITIGNORE_BLOCK = "\n".join(
+    (
+        GITIGNORE_BLOCK_START,
+        "aii/interviews/*",
+        "!aii/interviews/.gitkeep",
+        "",
+        "aii/plans/*",
+        "!aii/plans/.gitkeep",
+        "",
+        "aii/metadata/*",
+        "!aii/metadata/.gitkeep",
+        GITIGNORE_BLOCK_END,
+    )
+)
 
-FILES = {
-    "AGENTS.md": """# AGENTS.md
-
-This file stores persistent instructions for Codex when working in this repo.
-
-## Default Operating Mode
-- Act as a senior Roblox engineer focused on shipping correct, maintainable, performant improvements.
-- Default to direct, scoped execution.
-- Prefer a single strong executor by default.
-- Do not assume team orchestration is needed.
-- Do not expand task scope unless it materially affects correctness.
-
-## Autonomy Rules
-- For clear, bounded tasks, work autonomously until the task is complete.
-- Verify changes before claiming completion.
-- Only stop to ask the user when:
-  - a decision is destructive or irreversible
-  - requirements are materially ambiguous
-  - multiple valid directions would significantly change the outcome
-  - required files, assets, environment values, or data are missing in a way that blocks correct implementation
-
-## Planning Rules
-- For small or local fixes, proceed directly.
-- For non-trivial multi-file changes, first provide:
-  1. the intended approach
-  2. the major files likely to change
-  3. the main risks or assumptions
-- After that, proceed once approved.
-- If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification.
-- Prefer reading existing code and nearby patterns to answer questions before asking the user.
-
-## Team Escalation Rule
-- Do not use multi-agent or team workflows by default.
-- Escalate to team-style parallel work only when the task has clearly separable lanes that can be worked independently without causing merge/conflict churn.
-- Prefer a single strong executor for most Roblox gameplay, UI, tools, networking, and systems tasks.
-- Never enter team mode unless the user explicitly asks for it or the task naturally splits into 2 or more independent lanes with different outputs.
-
-## Long-Task Notification Rule
-- Detect when a task is likely to be long-running or multi-step.
-- Consider a task long-running when it likely requires broad analysis, multi-file implementation, repeated verification, or multiple execution iterations.
-- Also treat autonomous execution requests, architecture reviews, optimization passes, and subsystem refactors as likely long-running.
-- For likely long-running tasks, ask once at the start whether the user wants a Discord webhook notification when the task is complete.
-- If the user wants completion notification:
-  - check `.env` for `codex_webhook=...`
-  - if `codex_webhook` is missing or empty, ask the user for the webhook URL
-  - use the configured webhook only for completion notification unless the user explicitly asks for progress updates
-- Do not ask about webhook notification for short debugging, small edits, or simple questions.
-- Do not ask repeatedly within the same task once the user's preference is known.
-- Treat Discord webhook URLs as sensitive secrets. Do not echo them in logs, reports, or final responses.
-
-## Context Discipline
-- Always read a file before editing so decisions reflect the latest local state, including uncommitted changes.
-- Use the smallest relevant context possible.
-- Only use files relevant to the task.
-- Do not perform repo-wide analysis unless the task actually requires cross-system understanding.
-- Avoid unnecessary repeated reading of unrelated systems.
-
-## Roblox Engineering Priorities
-- Follow existing architecture and patterns in the codebase.
-- Prefer consistency with nearby Services, Controllers, Modules, and utilities.
-- Avoid introducing new abstractions unless they clearly simplify the system.
-- Optimize for responsiveness, maintainability, and gameplay clarity.
-- Be mindful of replication cost, remotes, per-frame work, memory churn, and server/client boundaries.
-- Cache frequently used references where appropriate.
-- Prefer practical, debuggable systems over overly clever designs.
-
-## Roblox Task Heuristics
-- For gameplay systems, prioritize player feedback, clarity, and responsiveness.
-- For UI/UX, prefer low-friction interactions and immediate feedback.
-- For performance work, look first for unnecessary loops, repeated allocations, broad listeners, remote spam, and avoidable recomputation.
-- For networking, minimize unnecessary replication and keep authority boundaries clear.
-- For architecture, prefer modular extensions over deep rewrites unless a rewrite is clearly justified.
-
-## Implementation Rules
-- Keep diffs focused, reviewable, and reversible.
-- Prefer deletion over addition when that improves clarity.
-- Reuse existing utilities and patterns before introducing new helpers.
-- Do not add new dependencies unless explicitly requested.
-- Follow existing coding practices and nearby patterns; prefer local consistency over introducing a new style.
-- Keep edits ASCII unless the file already uses Unicode.
-- Do not revert unrelated changes.
-- Avoid destructive git commands unless explicitly requested.
-
-## Error Handling
-- If returning early due to an error or invalid state, emit a clear warning explaining why.
-- Do not silently continue when required files, assets, or inputs are missing.
-- If a provided mock save, asset, export, or imported data source is invalid, warn and stop.
-- When a required asset is missing from a location where it is expected to exist, treat that as a notable issue and surface it clearly.
-
-## Verification
-- Verify before claiming completion.
-- Use the lightest verification that matches the change size:
-  - small changes: targeted checks
-  - standard changes: relevant tests and local validation
-  - larger architectural changes: broader verification and risk summary
-- If verification fails, continue iterating when the recovery path is clear.
-- Final response should include:
-  - what changed
-  - files changed
-  - what was verified
-  - any remaining risks or follow-ups
-
-## Project Notes
-- Add project-specific conventions, workflows, and testing commands here as the repo grows.
-""",
+STATIC_FILES = {
     "aii/README.md": """# aii
 
 `aii` stores reusable AI workflow artifacts for this repo.
@@ -132,24 +63,129 @@ Use `python aii/bootstrap.py` to recreate the baseline scaffold if needed.
 
 history: []
 """,
-    "aii/skills/deep-interview/SKILL.md": (ROOT / "aii/skills/deep-interview/SKILL.md").read_text(encoding="utf-8"),
-    "aii/skills/planner/SKILL.md": (ROOT / "aii/skills/planner/SKILL.md").read_text(encoding="utf-8"),
-    "aii/skills/plan-executor/SKILL.md": (ROOT / "aii/skills/plan-executor/SKILL.md").read_text(encoding="utf-8"),
-    "aii/skills/plan-modifier/SKILL.md": (ROOT / "aii/skills/plan-modifier/SKILL.md").read_text(encoding="utf-8"),
-    "aii/skills/resume-last-task/SKILL.md": (ROOT / "aii/skills/resume-last-task/SKILL.md").read_text(encoding="utf-8"),
 }
 
 
-def write_file(relative_path: str, content: str) -> None:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing scaffold files during install.",
+    )
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Remove the aii scaffold and restore AGENTS.md from AGENTS.md.bak if present.",
+    )
+    return parser.parse_args()
+
+
+def fetch_text(url: str) -> str:
+    request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap"})
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8")
+
+
+def build_remote_files() -> dict[str, str]:
+    files: dict[str, str] = {
+        "AGENTS.md": fetch_text(f"{RAW_BASE}/AGENTS.md"),
+    }
+    for skill in SKILLS:
+        relative_path = f"aii/skills/{skill}/SKILL.md"
+        files[relative_path] = fetch_text(f"{RAW_BASE}/aii/skills/{skill}/SKILL.md")
+    return files
+
+
+def write_file(relative_path: str, content: str, force: bool) -> None:
     path = ROOT / relative_path
+    if path.exists() and not force:
+        raise FileExistsError(
+            f"{relative_path} already exists. Re-run with --force to overwrite."
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+    print(f"wrote {relative_path}")
+
+
+def backup_agents() -> None:
+    if not AGENTS_PATH.exists():
+        return
+    backup_content = f"{BACKUP_HEADER}\n\n{AGENTS_PATH.read_text(encoding='utf-8')}"
+    AGENTS_BAK_PATH.write_text(backup_content, encoding="utf-8")
+    print(f"wrote {AGENTS_BAK_PATH.relative_to(ROOT)}")
+
+
+def restore_agents_backup() -> None:
+    if not AGENTS_BAK_PATH.exists():
+        if AGENTS_PATH.exists():
+            AGENTS_PATH.unlink()
+            print("removed AGENTS.md")
+        return
+    backup_content = AGENTS_BAK_PATH.read_text(encoding="utf-8")
+    if backup_content.startswith(BACKUP_HEADER):
+        restored = backup_content[len(BACKUP_HEADER) :].lstrip("\n")
+    else:
+        restored = backup_content
+    AGENTS_PATH.write_text(restored, encoding="utf-8")
+    AGENTS_BAK_PATH.unlink()
+    print("restored AGENTS.md from AGENTS.md.bak")
+    print("removed AGENTS.md.bak")
+
+
+def update_gitignore_for_install() -> None:
+    existing = GITIGNORE_PATH.read_text(encoding="utf-8") if GITIGNORE_PATH.exists() else ""
+    if GITIGNORE_BLOCK_START in existing and GITIGNORE_BLOCK_END in existing:
+        return
+    new_content = existing.rstrip()
+    if new_content:
+        new_content += "\n\n"
+    new_content += GITIGNORE_BLOCK + "\n"
+    GITIGNORE_PATH.write_text(new_content, encoding="utf-8")
+    print("updated .gitignore")
+
+
+def update_gitignore_for_uninstall() -> None:
+    if not GITIGNORE_PATH.exists():
+        return
+    content = GITIGNORE_PATH.read_text(encoding="utf-8")
+    start = content.find(GITIGNORE_BLOCK_START)
+    end = content.find(GITIGNORE_BLOCK_END)
+    if start == -1 or end == -1:
+        return
+    end += len(GITIGNORE_BLOCK_END)
+    new_content = (content[:start] + content[end:]).strip()
+    if new_content:
+        new_content += "\n"
+        GITIGNORE_PATH.write_text(new_content, encoding="utf-8")
+        print("updated .gitignore")
+    else:
+        GITIGNORE_PATH.unlink()
+        print("removed .gitignore")
+
+
+def install(force: bool) -> None:
+    files = {**STATIC_FILES, **build_remote_files()}
+    backup_agents()
+    for relative_path, content in files.items():
+        write_file(relative_path, content, force=force)
+    update_gitignore_for_install()
+
+
+def uninstall() -> None:
+    if AII_PATH.exists():
+        shutil.rmtree(AII_PATH)
+        print("removed aii/")
+    restore_agents_backup()
+    update_gitignore_for_uninstall()
 
 
 def main() -> None:
-    for relative_path, content in FILES.items():
-        write_file(relative_path, content)
-        print(f"wrote {relative_path}")
+    args = parse_args()
+    if args.uninstall:
+        uninstall()
+        return
+    install(force=args.force)
 
 
 if __name__ == "__main__":
