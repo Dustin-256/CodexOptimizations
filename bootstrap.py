@@ -18,6 +18,7 @@ SKILLS = (
     "plan-modifier",
     "resume-last-task",
 )
+CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
 AGENTS_PATH = BASE_DIR / "AGENTS.md"
 AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
 AII_PATH = BASE_DIR / "aii"
@@ -77,6 +78,11 @@ def parse_args() -> argparse.Namespace:
         "--uninstall",
         action="store_true",
         help="Remove the aii scaffold and restore AGENTS.md from AGENTS.md.bak if present.",
+    )
+    parser.add_argument(
+        "--no-install-skills",
+        action="store_true",
+        help="Scaffold repo files only; do not symlink skills into ~/.codex/skills.",
     )
     return parser.parse_args()
 
@@ -164,15 +170,50 @@ def update_gitignore_for_uninstall() -> None:
         print("removed .gitignore")
 
 
-def install(force: bool) -> None:
+def install_codex_skills(force: bool) -> None:
+    CODEX_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    for skill in SKILLS:
+        source = AII_PATH / "skills" / skill
+        target = CODEX_SKILLS_DIR / skill
+        if target.exists() or target.is_symlink():
+            if target.is_symlink() and target.resolve() == source.resolve():
+                continue
+            if not force:
+                raise FileExistsError(
+                    f"{target} already exists. Re-run with --force to overwrite."
+                )
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        target.symlink_to(source, target_is_directory=True)
+        print(f"linked {target} -> {source}")
+
+
+def uninstall_codex_skills() -> None:
+    for skill in SKILLS:
+        target = CODEX_SKILLS_DIR / skill
+        if not target.exists() and not target.is_symlink():
+            continue
+        if target.is_symlink():
+            target.unlink()
+            print(f"removed {target}")
+            continue
+        print(f"left {target} in place because it is not a symlink")
+
+
+def install(force: bool, install_skills: bool) -> None:
     files = {**STATIC_FILES, **build_remote_files()}
     backup_agents()
     for relative_path, content in files.items():
         write_file(relative_path, content, force=force)
     update_gitignore_for_install()
+    if install_skills:
+        install_codex_skills(force=force)
 
 
 def uninstall() -> None:
+    uninstall_codex_skills()
     if AII_PATH.exists():
         shutil.rmtree(AII_PATH)
         print("removed aii/")
@@ -185,7 +226,7 @@ def main() -> None:
     if args.uninstall:
         uninstall()
         return
-    install(force=args.force)
+    install(force=args.force, install_skills=not args.no_install_skills)
 
 
 if __name__ == "__main__":

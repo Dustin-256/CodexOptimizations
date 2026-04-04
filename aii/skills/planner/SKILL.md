@@ -13,8 +13,20 @@ This skill is for planning only. Do not implement plan steps.
 
 ## Workflow
 
-### 1) Ask for the interview name first
-Do not proceed until the user gives the interview name.
+### 1) Resolve the interview target from context first
+Before asking for anything, determine whether the interview target is already clear from:
+
+- the user's most recent message
+- the immediately preceding chat context in this conversation
+- `aii/metadata/state.yaml` if it points to a resumable or recently completed interview artifact
+
+Prefer the current conversation over stale metadata when they disagree.
+
+If the user is clearly continuing from a just-finished `deep-interview`, reuse that interview name directly instead of asking for it again.
+
+If exactly one interview target is clearly implied, proceed with that target.
+
+If the signals conflict or the target is still ambiguous, ask a short clarifying question for the interview name instead of guessing.
 
 Load:
 
@@ -92,6 +104,8 @@ history: []
 
 Write metadata when planning starts, when awaiting user approval, and when the plan file is saved.
 
+When planning starts from a conversation-driven handoff, ensure `target_name` and `target_path` match the interview artifact that was actually selected from chat context or metadata.
+
 ## YAML format
 
 Use this structure:
@@ -131,7 +145,10 @@ steps:
 ```
 
 ## Rules
-- Ask for the interview name first.
+- Check current chat context first, then recent task metadata, before asking for an interview name.
+- Reuse the implied interview automatically when the handoff from `deep-interview` is clear.
+- If chat context and metadata disagree, prefer the active conversation and mention the conflict briefly only if it affects confidence.
+- Ask for the interview name only when the target remains ambiguous after checking both chat context and metadata.
 - Do not implement any steps.
 - Do not mark steps complete during plan creation.
 - Start all step statuses as `pending`.

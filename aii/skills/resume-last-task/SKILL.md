@@ -75,6 +75,8 @@ If the user confirms:
 - hand off to the relevant skill named in `last_task.skill`
 - continue using the stored target name/path
 
+During handoff, the receiving skill should still consider the active conversation. If the user has clearly redirected to a different interview or plan in the current chat, do not blindly follow stale metadata.
+
 Supported handoffs:
 - `deep-interview`
 - `planner`
@@ -108,3 +110,4 @@ history: []
 - For plans, summarize the remaining top-level work at a high level rather than dumping raw YAML details.
 - Do not resume automatically without confirmation.
 - After confirmation, re-read the artifact one more time before handing off.
+- Treat metadata as the resume source of truth for offering the resume, but let the active conversation override it if the user explicitly redirects before handoff.

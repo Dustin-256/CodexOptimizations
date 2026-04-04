@@ -74,6 +74,39 @@ Interpretation:
 
 These scores should reflect the clarified state at the end of the interview, not the initial request.
 
+### 4.5) Show per-response interview analytics
+Every conversational response during deep interview should begin with a compact analytics header.
+
+Use this header on each reply, not just in the final saved artifact.
+
+The header should include:
+- Ambiguity
+- Scope Clarity
+- Dependency Clarity
+- Implementation Readiness
+- Risk Level
+- Requirements Confidence
+- Readiness as a 0 to 100 value shown with a 20-slot bar
+
+Use a 20-slot readiness bar where each slot represents 5 percent.
+
+Example:
+
+```markdown
+Interview Metrics
+- Ambiguity: 3/10
+- Scope Clarity: 8/10
+- Dependency Clarity: 7/10
+- Implementation Readiness: 6/10
+- Risk Level: 4/10
+- Requirements Confidence: 7/10
+- Readiness: 70% [##############------]
+```
+
+After the header, continue with the actual interview response.
+
+Keep the header compact and consistent across turns.
+
 ### 5) Produce a readiness verdict
 After scoring, include exactly one of these verdicts:
 
@@ -113,6 +146,8 @@ Write the final artifact to:
 
 If the parent directory does not exist, create it.
 
+If the user immediately asks to continue into planning in the same conversation, treat this saved interview as the default handoff target unless the user names a different interview.
+
 ### 7) Update shared metadata
 Update:
 
@@ -135,6 +170,8 @@ history: []
 ```
 
 Write metadata when the interview starts, when awaiting user input, and when the interview artifact is completed.
+
+When the interview is completed with a verdict of `Ready for planning` or `Ready for planning with caveats`, the saved metadata should make the next `planner` handoff easy to infer, but the active chat still takes precedence if the user redirects.
 
 ## Output format
 
@@ -194,3 +231,4 @@ Ready for planning | Ready for planning with caveats | Not ready for planning
 - Record unresolved uncertainty explicitly instead of pretending clarity exists.
 - The goal is a strong planning handoff artifact, not exhaustive documentation.
 - Keep `aii/metadata/state.yaml` updated so a future `$resume-last-task` flow can recover the current interview cleanly.
+- After completing an interview, expect `planner` to continue from this artifact without re-asking for the name when the same chat clearly requests the next step.
