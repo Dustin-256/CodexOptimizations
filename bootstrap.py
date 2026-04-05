@@ -21,6 +21,9 @@ SKILLS = (
     "plan-modifier",
     "resume-last-task",
 )
+SCRIPTS = (
+    "send_webhook_embed.py",
+)
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
 ENV_PATH = BASE_DIR / ".env"
 ENV_KEY_WEBHOOK = "codex_webhook"
@@ -62,12 +65,14 @@ It keeps planning and execution artifacts in one predictable place so work can b
 ## What it can do
 
 - provide a home for reusable skill definitions in `skills/`
+- provide shared automation scripts in `scripts/`
 - preserve requirements in `interviews/`
 - track execution plans in `plans/`
 - persist resumable task state in `metadata/`
 
 ## Layout
 - `skills/`: opt-in skills such as `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
+- `scripts/`: reusable helpers such as `send_webhook_embed.py` for standardized Discord embeds
 - `interviews/`: saved markdown requirement handoff documents
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
@@ -132,6 +137,11 @@ def parse_args() -> argparse.Namespace:
             "codex_webhook is missing."
         ),
     )
+    parser.add_argument(
+        "--test-webhook-embed",
+        action="store_true",
+        help="Send a test embed webhook report and exit.",
+    )
     return parser.parse_args()
 
 
@@ -139,6 +149,13 @@ def fetch_text(url: str) -> str:
     request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap"})
     with urlopen(request, timeout=30) as response:
         return response.read().decode("utf-8")
+
+
+def read_local_relative(relative_path: str) -> str | None:
+    local_path = Path(__file__).resolve().parent / relative_path
+    if not local_path.exists():
+        return None
+    return local_path.read_text(encoding="utf-8")
 
 
 def truncate_discord_message(message: str, limit: int = 2000) -> str:
@@ -151,10 +168,12 @@ def _build_webhook_embed(action: str, status: str, details: str) -> dict[str, ob
     color_by_status = {
         "succeeded": 0x2ECC71,
         "failed": 0xE74C3C,
+        "progress": 0x3498DB,
     }
     emoji_by_status = {
         "succeeded": "✅",
         "failed": "❌",
+        "progress": "🔄",
     }
     normalized = status if status in color_by_status else "succeeded"
     return {
@@ -276,6 +295,13 @@ def build_remote_files() -> dict[str, str]:
     for skill in SKILLS:
         relative_path = f"aii/skills/{skill}/SKILL.md"
         files[relative_path] = fetch_text(f"{RAW_BASE}/aii/skills/{skill}/SKILL.md")
+    for script in SCRIPTS:
+        relative_path = f"aii/scripts/{script}"
+        local_content = read_local_relative(relative_path)
+        if local_content is not None:
+            files[relative_path] = local_content
+            continue
+        files[relative_path] = fetch_text(f"{RAW_BASE}/aii/scripts/{script}")
     return files
 
 
@@ -413,12 +439,37 @@ def main() -> None:
             "--always-skip-missing-webhook once."
         )
 
+    if args.test_webhook_embed:
+        if not webhook_url:
+            print("webhook missing; no test embed sent")
+            return
+        send_webhook_report(
+            webhook_url,
+            action="test",
+            status="progress",
+            details="embed delivery test from bootstrap.py",
+        )
+        print("sent webhook embed test")
+        return
+
     action = "uninstall" if args.uninstall else "install"
     try:
+        send_webhook_report(
+            webhook_url,
+            action=action,
+            status="progress",
+            details="starting scaffold operation",
+        )
         if args.uninstall:
             uninstall()
         else:
             install(force=args.force, install_skills=not args.no_install_skills)
+        send_webhook_report(
+            webhook_url,
+            action=action,
+            status="progress",
+            details="scaffold operation reached finalization stage",
+        )
         send_webhook_report(
             webhook_url,
             action=action,

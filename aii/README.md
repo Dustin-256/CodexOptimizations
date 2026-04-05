@@ -9,12 +9,14 @@ It keeps planning and execution artifacts in one predictable place so work can b
 ## What it can do
 
 - provide a home for reusable skill definitions in `skills/`
+- provide shared automation scripts in `scripts/`
 - preserve requirements in `interviews/`
 - track execution plans in `plans/`
 - persist resumable task state in `metadata/`
 
 ## Layout
 - `skills/`: opt-in skills such as `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
+- `scripts/`: reusable helpers such as `send_webhook_embed.py` for standardized Discord embeds
 - `interviews/`: saved markdown requirement handoff documents
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`

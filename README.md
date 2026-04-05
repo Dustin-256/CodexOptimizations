@@ -14,8 +14,9 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 ## What it can do
 
 `bootstrap.py` can:
-- scaffold an `aii/` workspace (`skills/`, `interviews/`, `plans/`, `metadata/`)
+- scaffold an `aii/` workspace (`skills/`, `scripts/`, `interviews/`, `plans/`, `metadata/`)
 - fetch and install canonical `AGENTS.md` and skill definitions from this repo
+- fetch and install canonical utility scripts (including webhook embed sender) from this repo
 - back up an existing `AGENTS.md` to `AGENTS.md.bak` before replacing it
 - symlink skills into `~/.codex/skills` so Codex can use them directly
 - manage `.gitignore` entries for generated `aii` artifacts
@@ -26,6 +27,7 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 Running the bootstrap creates or updates:
 - `AGENTS.md` (fetched from this repo's `main` branch)
 - `aii/README.md`
+- `aii/scripts/send_webhook_embed.py`
 - `aii/interviews/.gitkeep`
 - `aii/plans/.gitkeep`
 - `aii/metadata/.gitkeep`
@@ -38,6 +40,8 @@ Running the bootstrap creates or updates:
   - `resume-last-task`
 
 It also updates `.gitignore` to keep generated workflow artifacts untracked.
+
+The installed `aii/scripts/send_webhook_embed.py` script provides a shared, embed-first webhook notification path for progress, blocked, success, failure, and test events.
 
 ## Skill roles
 
@@ -83,6 +87,8 @@ Typical workflow:
   save `codex_webhook=URL` to `.env` for embed-based webhook reports (including bootstrap run reports)
 - `--always-skip-missing-webhook`:
   save `codex_ignore_webhook_missing=true` to `.env` so runs do not halt when `codex_webhook` is missing
+- `--test-webhook-embed`:
+  send a test embed using current webhook settings, then exit
 
 Examples:
 
@@ -104,6 +110,23 @@ python3 bootstrap.py --webhook https://discord.com/api/webhooks/...
 
 # Persist skip behavior when webhook is intentionally not configured
 python3 bootstrap.py --always-skip-missing-webhook
+
+# Send a test embed and exit
+python3 bootstrap.py --test-webhook-embed
+```
+
+### Shared Embed Script
+
+Use the installed helper for non-bootstrap notifications:
+
+```bash
+python3 aii/scripts/send_webhook_embed.py \
+  --event progress \
+  --summary "Executing plan step" \
+  --plan-name worker-system-audit \
+  --step-id step-2 \
+  --step-title "Validate remote throttling" \
+  --runtime "6m 12s"
 ```
 
 ## Uninstall behavior
@@ -123,6 +146,8 @@ python3 bootstrap.py --always-skip-missing-webhook
 ├── todo.md
 └── aii/
     ├── README.md
+    ├── scripts/
+    │   └── send_webhook_embed.py
     ├── interviews/
     ├── plans/
     ├── metadata/
