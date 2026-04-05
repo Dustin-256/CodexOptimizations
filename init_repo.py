@@ -24,7 +24,8 @@ def resolve_repo_root() -> Path:
             text=True,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise RuntimeError("run this script inside a git repository clone") from exc
+        raise RuntimeError(
+            "run this script inside a git repository clone") from exc
     return Path(completed.stdout.strip())
 
 
@@ -111,7 +112,8 @@ def install_pre_push_hook(repo_root: Path, force: bool) -> None:
     hooks_path = repo_root / ".git" / "hooks"
     pre_push_path = hooks_path / "pre-push"
     if not hooks_path.exists():
-        raise RuntimeError(".git/hooks not found; run inside a git repository clone")
+        raise RuntimeError(
+            ".git/hooks not found; run inside a git repository clone")
 
     new_script = build_pre_push_hook_script()
     if pre_push_path.exists():
@@ -135,7 +137,8 @@ def uninstall_pre_push_hook(repo_root: Path) -> None:
     existing = pre_push_path.read_text(encoding="utf-8")
     managed = HOOK_MARKER_START in existing and HOOK_MARKER_END in existing
     if not managed:
-        raise RuntimeError("existing .git/hooks/pre-push is not managed by this repo; refusing to remove")
+        raise RuntimeError(
+            "existing .git/hooks/pre-push is not managed by this repo; refusing to remove")
     pre_push_path.unlink()
     print("removed managed .git/hooks/pre-push")
 

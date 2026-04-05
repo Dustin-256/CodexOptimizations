@@ -19,7 +19,8 @@ CACHE_VERSION_PATH = BASE_DIR / "aii" / "version.txt"
 
 
 def fetch_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap-launcher"})
+    request = Request(
+        url, headers={"User-Agent": "codex-optimizations-bootstrap-launcher"})
     with urlopen(request, timeout=30) as response:
         return response.read().decode("utf-8")
 
@@ -57,7 +58,8 @@ def write_cached_setup(setup_source: str, version_tag: str | None) -> None:
     CACHE_SETUP_PATH.write_text(setup_source, encoding="utf-8")
     if version_tag:
         CACHE_VERSION_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_VERSION_PATH.write_text(version_tag.strip() + "\n", encoding="utf-8")
+        CACHE_VERSION_PATH.write_text(
+            version_tag.strip() + "\n", encoding="utf-8")
 
 
 def ensure_cached_setup() -> None:
@@ -68,7 +70,8 @@ def ensure_cached_setup() -> None:
     if not CACHE_SETUP_PATH.exists():
         should_update = True
     elif remote_version is not None:
-        should_update = parse_version_tag(remote_version) > parse_version_tag(local_version)
+        should_update = parse_version_tag(
+            remote_version) > parse_version_tag(local_version)
 
     if should_update:
         setup_source = fetch_text(f"{RAW_BASE}/{REMOTE_SETUP_PATH}")
