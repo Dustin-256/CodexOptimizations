@@ -2,6 +2,16 @@
 
 Utilities and scaffolding for adding reusable Codex workflows to a repository.
 
+## Contributor Quick Start
+
+If you cloned this repository to contribute, run:
+
+```bash
+python3 init_repo.py
+```
+
+This installs the managed `pre-push` version hook for contributors.
+
 ## Why this is useful
 
 Most teams lose time repeating the same planning and execution setup for AI-assisted work. This repo gives you a reusable baseline so every project starts with:
@@ -69,6 +79,18 @@ From the repository root:
 ```bash
 python3 bootstrap.py
 ```
+
+### Contributor Init (Repo Clone)
+
+For contributors working on this repository itself, run:
+
+```bash
+python3 init_repo.py
+```
+
+This does one-time local contributor setup:
+- installs the managed `pre-push` version hook
+- does not run bootstrap or scaffold files
 
 Typical workflow:
 1. Run `python3 bootstrap.py` in a target repository.

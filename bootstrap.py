@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Bootstrap or uninstall the local aii scaffold."""
+"""Fetch/update cached aii setup script, then execute it."""
 
 from __future__ import annotations
 
-import argparse
-import json
-import shutil
-from datetime import datetime, timezone
+import subprocess
+import sys
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -14,477 +12,95 @@ from urllib.request import Request, urlopen
 
 BASE_DIR = Path.cwd()
 RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main"
-SKILLS = (
-    "deep-interview",
-    "planner",
-    "plan-executor",
-    "plan-modifier",
-    "resume-last-task",
-)
-SCRIPTS = (
-    "send_webhook_embed.py",
-)
-CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
-ENV_PATH = BASE_DIR / ".env"
-ENV_KEY_WEBHOOK = "codex_webhook"
-ENV_KEY_IGNORE_WEBHOOK_MISSING = "codex_ignore_webhook_missing"
-AGENTS_PATH = BASE_DIR / "AGENTS.md"
-AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
-AII_PATH = BASE_DIR / "aii"
-GITIGNORE_PATH = BASE_DIR / ".gitignore"
-BACKUP_HEADER = (
-    "THIS FILE IS TO NOT BE USED, IT IS SIMPLY A BACKUP OF AGENTS.MD "
-    "ALWAYS REFER TO AGENTS.MD and ignore this."
-)
-GITIGNORE_BLOCK_START = "# BEGIN aii bootstrap"
-GITIGNORE_BLOCK_END = "# END aii bootstrap"
-GITIGNORE_BLOCK = "\n".join(
-    (
-        GITIGNORE_BLOCK_START,
-        "aii/interviews/*",
-        "!aii/interviews/.gitkeep",
-        "",
-        "aii/plans/*",
-        "!aii/plans/.gitkeep",
-        "",
-        "aii/metadata/*",
-        "!aii/metadata/.gitkeep",
-        GITIGNORE_BLOCK_END,
-    )
-)
-
-STATIC_FILES = {
-    "aii/README.md": """# aii
-
-`aii` is the working area for structured AI execution in this repository.
-
-## Why this is useful
-
-It keeps planning and execution artifacts in one predictable place so work can be resumed cleanly across sessions and collaborators.
-
-## What it can do
-
-- provide a home for reusable skill definitions in `skills/`
-- provide shared automation scripts in `scripts/`
-- preserve requirements in `interviews/`
-- track execution plans in `plans/`
-- persist resumable task state in `metadata/`
-
-## Layout
-- `skills/`: opt-in skills such as `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
-- `scripts/`: reusable helpers such as `send_webhook_embed.py` for standardized Discord embeds
-- `interviews/`: saved markdown requirement handoff documents
-- `plans/`: machine-readable YAML execution plans
-- `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
-
-## Skill roles
-
-- `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
-- `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
-- `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
-- `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
-- `resume-last-task`: restores the most recent resumable task context from `aii/metadata/` and continues work.
-
-Typical flow: interview -> plan -> execute -> modify (if needed) -> resume later.
-
-## How to use it
-
-1. Bootstrap the repo with `python3 bootstrap.py`.
-2. Run a requirements interview and save it in `interviews/`.
-3. Generate an execution plan into `plans/`.
-4. Execute or modify the plan while persisting progress in `metadata/`.
-5. Resume later using the saved state instead of starting over.
-
-Use `python bootstrap.py` to recreate the baseline scaffold if needed.
-""",
-    "aii/interviews/.gitkeep": "",
-    "aii/plans/.gitkeep": "",
-    "aii/metadata/.gitkeep": "",
-    "aii/metadata/state.yaml": """last_task: null
-
-history: []
-""",
-}
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite existing scaffold files during install.",
-    )
-    parser.add_argument(
-        "--uninstall",
-        action="store_true",
-        help="Remove the aii scaffold and restore AGENTS.md from AGENTS.md.bak if present.",
-    )
-    parser.add_argument(
-        "--no-install-skills",
-        action="store_true",
-        help="Scaffold repo files only; do not symlink skills into ~/.codex/skills.",
-    )
-    parser.add_argument(
-        "--webhook",
-        metavar="URL",
-        help="Persist Discord webhook URL to .env as codex_webhook for embed webhook reports.",
-    )
-    parser.add_argument(
-        "--always-skip-missing-webhook",
-        action="store_true",
-        help=(
-            "Persist codex_ignore_webhook_missing=true in .env so runs do not halt when "
-            "codex_webhook is missing."
-        ),
-    )
-    parser.add_argument(
-        "--test-webhook-embed",
-        action="store_true",
-        help="Send a test embed webhook report and exit.",
-    )
-    return parser.parse_args()
+REMOTE_SETUP_PATH = "aii/scripts/setup.py"
+REMOTE_VERSION_PATHS = ("version.txt",)
+CACHE_SETUP_PATH = BASE_DIR / REMOTE_SETUP_PATH
+CACHE_VERSION_PATH = BASE_DIR / "version.txt"
 
 
 def fetch_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap"})
+    request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap-launcher"})
     with urlopen(request, timeout=30) as response:
         return response.read().decode("utf-8")
 
 
-def read_local_relative(relative_path: str) -> str | None:
-    local_path = Path(__file__).resolve().parent / relative_path
-    if not local_path.exists():
+def read_local_version() -> str | None:
+    if not CACHE_VERSION_PATH.exists():
         return None
-    return local_path.read_text(encoding="utf-8")
+    return CACHE_VERSION_PATH.read_text(encoding="utf-8").strip() or None
 
 
-def truncate_discord_message(message: str, limit: int = 2000) -> str:
-    if len(message) <= limit:
-        return message
-    return message[: limit - 3] + "..."
-
-
-def _build_webhook_embed(action: str, status: str, details: str) -> dict[str, object]:
-    color_by_status = {
-        "succeeded": 0x2ECC71,
-        "failed": 0xE74C3C,
-        "progress": 0x3498DB,
-    }
-    emoji_by_status = {
-        "succeeded": "✅",
-        "failed": "❌",
-        "progress": "🔄",
-    }
-    normalized = status if status in color_by_status else "succeeded"
-    return {
-        "title": f"{emoji_by_status[normalized]} bootstrap.py {action} {normalized}",
-        "description": "Bootstrap execution report",
-        "color": color_by_status[normalized],
-        "fields": [
-            {"name": "Repository", "value": str(BASE_DIR), "inline": False},
-            {"name": "Details", "value": truncate_discord_message(details, 1000), "inline": False},
-        ],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def send_webhook_report(
-    webhook_url: str | None, *, action: str, status: str, details: str
-) -> None:
-    if not webhook_url:
-        return
-
-    payload = json.dumps(
-        {
-            "embeds": [_build_webhook_embed(action=action, status=status, details=details)],
-            "allowed_mentions": {"parse": []},
-        }
-    ).encode("utf-8")
-    request = Request(
-        webhook_url,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "codex-optimizations-bootstrap",
-        },
-        method="POST",
-    )
-
-    try:
-        with urlopen(request, timeout=30):
-            pass
-    except URLError as exc:
-        print(f"warning: failed to send webhook report: {exc}")
-
-
-def load_codex_webhook(env_path: Path = ENV_PATH) -> str | None:
-    return load_env_value(ENV_KEY_WEBHOOK, env_path=env_path)
-
-
-def load_codex_ignore_webhook_missing(env_path: Path = ENV_PATH) -> bool:
-    value = load_env_value(ENV_KEY_IGNORE_WEBHOOK_MISSING, env_path=env_path)
-    if value is None:
-        return False
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def load_env_value(key: str, env_path: Path = ENV_PATH) -> str | None:
-    if not env_path.exists():
-        return None
-    key_prefix = f"{key}="
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+def fetch_remote_version() -> str | None:
+    for relative_path in REMOTE_VERSION_PATHS:
+        try:
+            value = fetch_text(f"{RAW_BASE}/{relative_path}").strip()
+        except URLError:
             continue
-        if stripped.startswith("export "):
-            stripped = stripped[len("export ") :].lstrip()
-        if not stripped.startswith(key_prefix):
-            continue
-        value = stripped.split("=", 1)[1].strip()
-        return value.strip("\"'")
+        if value:
+            return value
     return None
 
 
-def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
-    save_env_value(ENV_KEY_WEBHOOK, webhook_url, env_path=env_path)
-    print("updated .env with codex_webhook for embed webhook reports")
+def parse_version_tag(tag: str | None) -> int:
+    if not tag:
+        return -1
+    cleaned = tag.strip()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    if not cleaned.isdigit():
+        return -1
+    return int(cleaned)
 
 
-def save_codex_ignore_webhook_missing(
-    should_ignore: bool, env_path: Path = ENV_PATH
-) -> None:
-    save_env_value(
-        ENV_KEY_IGNORE_WEBHOOK_MISSING,
-        "true" if should_ignore else "false",
-        env_path=env_path,
+def write_cached_setup(setup_source: str, version_tag: str | None) -> None:
+    CACHE_SETUP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_SETUP_PATH.write_text(setup_source, encoding="utf-8")
+    if version_tag:
+        CACHE_VERSION_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_VERSION_PATH.write_text(version_tag.strip() + "\n", encoding="utf-8")
+
+
+def ensure_cached_setup() -> None:
+    local_version = read_local_version()
+    remote_version = fetch_remote_version()
+
+    should_update = False
+    if not CACHE_SETUP_PATH.exists():
+        should_update = True
+    elif remote_version is not None:
+        should_update = parse_version_tag(remote_version) > parse_version_tag(local_version)
+
+    if should_update:
+        setup_source = fetch_text(f"{RAW_BASE}/{REMOTE_SETUP_PATH}")
+        write_cached_setup(setup_source, remote_version)
+        shown_version = remote_version or "unknown-version"
+        print(f"updated cached setup script ({shown_version})")
+        return
+
+    if CACHE_SETUP_PATH.exists():
+        shown_version = local_version or "unknown-version"
+        print(f"using cached setup script ({shown_version})")
+        return
+
+    raise RuntimeError(
+        "could not find cached setup script and failed to download latest setup script"
     )
-    print(
-        "updated .env with codex_ignore_webhook_missing="
-        + ("true" if should_ignore else "false")
-    )
 
 
-def save_env_value(key: str, value: str, env_path: Path = ENV_PATH) -> None:
-    new_entry = f"{key}={value}"
-    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
-
-    replaced = False
-    new_lines: list[str] = []
-    for line in lines:
-        stripped = line.strip()
-        comparison = stripped
-        if comparison.startswith("export "):
-            comparison = comparison[len("export ") :].lstrip()
-        if comparison.startswith(f"{key}="):
-            if not replaced:
-                new_lines.append(new_entry)
-                replaced = True
-            continue
-        new_lines.append(line)
-
-    if not replaced:
-        new_lines.append(new_entry)
-
-    env_path.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
+def run_cached_setup(argv: list[str]) -> int:
+    command = [sys.executable, str(CACHE_SETUP_PATH), *argv]
+    completed = subprocess.run(command, cwd=BASE_DIR)
+    return completed.returncode
 
 
-def build_remote_files() -> dict[str, str]:
-    files: dict[str, str] = {
-        "AGENTS.md": fetch_text(f"{RAW_BASE}/AGENTS.md"),
-    }
-    for skill in SKILLS:
-        relative_path = f"aii/skills/{skill}/SKILL.md"
-        files[relative_path] = fetch_text(f"{RAW_BASE}/aii/skills/{skill}/SKILL.md")
-    for script in SCRIPTS:
-        relative_path = f"aii/scripts/{script}"
-        local_content = read_local_relative(relative_path)
-        if local_content is not None:
-            files[relative_path] = local_content
-            continue
-        files[relative_path] = fetch_text(f"{RAW_BASE}/aii/scripts/{script}")
-    return files
-
-
-def write_file(relative_path: str, content: str, force: bool) -> None:
-    path = BASE_DIR / relative_path
-    if path.exists() and not force:
-        raise FileExistsError(
-            f"{relative_path} already exists. Re-run with --force to overwrite."
-        )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    print(f"wrote {path}")
-
-
-def backup_agents() -> None:
-    if not AGENTS_PATH.exists():
-        return
-    backup_content = f"{BACKUP_HEADER}\n\n{AGENTS_PATH.read_text(encoding='utf-8')}"
-    AGENTS_BAK_PATH.write_text(backup_content, encoding="utf-8")
-    print(f"wrote {AGENTS_BAK_PATH}")
-
-
-def restore_agents_backup() -> None:
-    if not AGENTS_BAK_PATH.exists():
-        if AGENTS_PATH.exists():
-            AGENTS_PATH.unlink()
-            print("removed AGENTS.md")
-        return
-    backup_content = AGENTS_BAK_PATH.read_text(encoding="utf-8")
-    if backup_content.startswith(BACKUP_HEADER):
-        restored = backup_content[len(BACKUP_HEADER) :].lstrip("\n")
-    else:
-        restored = backup_content
-    AGENTS_PATH.write_text(restored, encoding="utf-8")
-    AGENTS_BAK_PATH.unlink()
-    print("restored AGENTS.md from AGENTS.md.bak")
-    print("removed AGENTS.md.bak")
-
-
-def update_gitignore_for_install() -> None:
-    existing = GITIGNORE_PATH.read_text(encoding="utf-8") if GITIGNORE_PATH.exists() else ""
-    if GITIGNORE_BLOCK_START in existing and GITIGNORE_BLOCK_END in existing:
-        return
-    new_content = existing.rstrip()
-    if new_content:
-        new_content += "\n\n"
-    new_content += GITIGNORE_BLOCK + "\n"
-    GITIGNORE_PATH.write_text(new_content, encoding="utf-8")
-    print("updated .gitignore")
-
-
-def update_gitignore_for_uninstall() -> None:
-    if not GITIGNORE_PATH.exists():
-        return
-    content = GITIGNORE_PATH.read_text(encoding="utf-8")
-    start = content.find(GITIGNORE_BLOCK_START)
-    end = content.find(GITIGNORE_BLOCK_END)
-    if start == -1 or end == -1:
-        return
-    end += len(GITIGNORE_BLOCK_END)
-    new_content = (content[:start] + content[end:]).strip()
-    if new_content:
-        new_content += "\n"
-        GITIGNORE_PATH.write_text(new_content, encoding="utf-8")
-        print("updated .gitignore")
-    else:
-        GITIGNORE_PATH.unlink()
-        print("removed .gitignore")
-
-
-def install_codex_skills(force: bool) -> None:
-    CODEX_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-    for skill in SKILLS:
-        source = AII_PATH / "skills" / skill
-        target = CODEX_SKILLS_DIR / skill
-        if target.exists() or target.is_symlink():
-            if target.is_symlink() and target.resolve() == source.resolve():
-                continue
-            if not force:
-                raise FileExistsError(
-                    f"{target} already exists. Re-run with --force to overwrite."
-                )
-            if target.is_dir() and not target.is_symlink():
-                shutil.rmtree(target)
-            else:
-                target.unlink()
-        target.symlink_to(source, target_is_directory=True)
-        print(f"linked {target} -> {source}")
-
-
-def uninstall_codex_skills() -> None:
-    for skill in SKILLS:
-        target = CODEX_SKILLS_DIR / skill
-        if not target.exists() and not target.is_symlink():
-            continue
-        if target.is_symlink():
-            target.unlink()
-            print(f"removed {target}")
-            continue
-        print(f"left {target} in place because it is not a symlink")
-
-
-def install(force: bool, install_skills: bool) -> None:
-    files = {**STATIC_FILES, **build_remote_files()}
-    backup_agents()
-    for relative_path, content in files.items():
-        write_file(relative_path, content, force=force)
-    update_gitignore_for_install()
-    if install_skills:
-        install_codex_skills(force=force)
-
-
-def uninstall() -> None:
-    uninstall_codex_skills()
-    if AII_PATH.exists():
-        shutil.rmtree(AII_PATH)
-        print("removed aii/")
-    restore_agents_backup()
-    update_gitignore_for_uninstall()
-
-
-def main() -> None:
-    args = parse_args()
-    if args.webhook:
-        save_codex_webhook(args.webhook)
-    if args.always_skip_missing_webhook:
-        save_codex_ignore_webhook_missing(True)
-
-    webhook_url = args.webhook or load_codex_webhook()
-    ignore_missing_webhook = load_codex_ignore_webhook_missing()
-    if not webhook_url and not ignore_missing_webhook:
-        raise RuntimeError(
-            "codex_webhook is missing. Set it in .env or run with "
-            "--webhook URL. To always skip this gate, run with "
-            "--always-skip-missing-webhook once."
-        )
-
-    if args.test_webhook_embed:
-        if not webhook_url:
-            print("webhook missing; no test embed sent")
-            return
-        send_webhook_report(
-            webhook_url,
-            action="test",
-            status="progress",
-            details="embed delivery test from bootstrap.py",
-        )
-        print("sent webhook embed test")
-        return
-
-    action = "uninstall" if args.uninstall else "install"
+def main(argv: list[str] | None = None) -> int:
+    forwarded_args = sys.argv[1:] if argv is None else argv
     try:
-        send_webhook_report(
-            webhook_url,
-            action=action,
-            status="progress",
-            details="starting scaffold operation",
-        )
-        if args.uninstall:
-            uninstall()
-        else:
-            install(force=args.force, install_skills=not args.no_install_skills)
-        send_webhook_report(
-            webhook_url,
-            action=action,
-            status="progress",
-            details="scaffold operation reached finalization stage",
-        )
-        send_webhook_report(
-            webhook_url,
-            action=action,
-            status="succeeded",
-            details="scaffold operation completed successfully",
-        )
-    except Exception as exc:
-        send_webhook_report(
-            webhook_url,
-            action=action,
-            status="failed",
-            details=f"{type(exc).__name__}: {exc}",
-        )
-        raise
+        ensure_cached_setup()
+    except URLError as exc:
+        raise RuntimeError(f"failed to fetch setup script: {exc}") from exc
+    return run_cached_setup(forwarded_args)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
