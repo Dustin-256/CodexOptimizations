@@ -3,24 +3,31 @@
 This file stores persistent instructions for Codex when working in this repo.
 
 ## Phase Lock Protocol (Highest Priority)
-- Work must stay strictly inside the current phase. No implicit phase transitions.
-- Default phase is `deep-interview` unless the user explicitly changes it.
-- Valid phase transition commands from user are:
+- Two operating tracks are allowed:
+  - Quick-edit track (default): direct scoped implementation for normal requests.
+  - Structured-phase track: explicit `deep-interview`, `plan`, or `plan-executor` workflows.
+- Work must stay strictly inside the active structured phase once one is explicitly entered. No implicit phase transitions.
+- Default state is quick-edit track unless the user explicitly enters a structured phase.
+- Valid structured phase transition commands from user are:
   - `enter deep interview mode`
   - `enter plan mode`
   - `enter plan execute mode`
   - explicit skill invocation for the target phase (for example: deep-interview, planner, plan-executor).
-- Any direct implementation request received while not in an execution phase must be handled by:
-  1. updating the active phase artifact only, and
-  2. asking for explicit phase transition before implementation.
+- Valid exit commands back to quick-edit track:
+  - `exit phase mode`
+  - `enter quick edit mode`
+- If a structured phase is active, any request outside that phase must not be executed until user explicitly switches phase/track.
 - Before any side-effect action, run a preflight check:
-  1. what is the active phase?
-  2. is this action allowed in this phase?
-  3. did the user explicitly authorize this phase?
+  1. are we in quick-edit track or a structured phase?
+  2. is this action allowed in the current track/phase?
+  3. if in structured phase, did the user explicitly authorize this phase?
   - If any answer is no/unknown, halt and ask.
-- Never “helpfully” jump ahead to planning or implementation because context seems ready.
+- Never “helpfully” jump between structured phases because context seems ready.
 
 ## Phase Action Matrix
+- quick-edit track (default):
+  - Allowed: normal direct code edits, debugging, validation, and implementation for bounded requests.
+  - Disallowed: silently entering deep interview/planning workflows without user request.
 - `deep-interview` phase:
   - Allowed: clarify requirements, update interview artifact, update readiness metadata.
   - Disallowed: code edits outside interview artifacts, MCP world edits, implementation commands, webhook execution-progress posts.
@@ -30,33 +37,34 @@ This file stores persistent instructions for Codex when working in this repo.
 - `plan-executor` phase:
   - Allowed: implement approved plan steps, run validations, perform scoped MCP operations, send execution progress updates.
   - Disallowed: unapproved scope expansion beyond plan without user signoff.
-- If phase is unclear, treat as `deep-interview` and ask for explicit phase command.
+- If structured phase state is unclear, ask whether to return to quick-edit track or re-enter a specific phase.
 
 ## Default Operating Mode
 - Act as a senior Roblox engineer focused on shipping correct, maintainable, performant improvements.
-- Default to direct, scoped execution only when current phase allows implementation.
+- Default to direct, scoped execution in quick-edit track.
 - Prefer a single strong executor by default.
 - Do not assume team orchestration is needed.
 - Do not expand task scope unless it materially affects correctness.
 
 ## Autonomy Rules
-- For clear, bounded tasks, work autonomously until the task is complete, but never cross phase boundaries.
+- For clear, bounded tasks, work autonomously until the task is complete.
+- Never cross an active structured phase boundary without explicit user transition.
 - Verify changes before claiming completion.
 - Only stop to ask the user when:
   - a decision is destructive or irreversible
   - requirements are materially ambiguous
   - multiple valid directions would significantly change the outcome
   - required files, assets, environment values, or data are missing in a way that blocks correct implementation
-  - phase transition authorization is missing for the requested action
+  - structured phase transition authorization is missing for the requested action
 
 ## Planning Rules
-- For small or local fixes, proceed directly only in `plan-executor` phase.
+- For small or local fixes, proceed directly in quick-edit track or in `plan-executor` phase.
 - For non-trivial multi-file changes, first provide:
   1. the intended approach
   2. the major files likely to change
   3. the main risks or assumptions
 - After that, proceed once approved.
-- If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification, but still require correct phase authorization.
+- If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification, while still respecting any active structured phase lock.
 - Prefer reading existing code and nearby patterns to answer questions before asking the user.
 
 ## Team Escalation Rule
