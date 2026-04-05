@@ -13,9 +13,9 @@ from urllib.request import Request, urlopen
 BASE_DIR = Path.cwd()
 RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main"
 REMOTE_SETUP_PATH = "aii/scripts/setup.py"
-REMOTE_VERSION_PATHS = ("version.txt",)
+REMOTE_VERSION_PATHS = ("aii/version.txt",)
 CACHE_SETUP_PATH = BASE_DIR / REMOTE_SETUP_PATH
-CACHE_VERSION_PATH = BASE_DIR / "version.txt"
+CACHE_VERSION_PATH = BASE_DIR / "aii" / "version.txt"
 
 
 def fetch_text(url: str) -> str:

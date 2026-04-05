@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Increment root version.txt numeric tag (vN -> vN+1)."""
+"""Increment aii/version.txt numeric tag (vN -> vN+1)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 
-VERSION_PATH = Path.cwd() / "version.txt"
+VERSION_PATH = Path.cwd() / "aii" / "version.txt"
 
 
 def parse_args() -> argparse.Namespace:
