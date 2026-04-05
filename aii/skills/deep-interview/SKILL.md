@@ -1,6 +1,6 @@
 ---
 name: deep-interview
-description: gather structured requirements for a task and save them as a markdown interview artifact under aii/interviews. use when a request is broad, underspecified, high-impact, ambiguous, or when the user wants requirements clarified before planning or implementation. ask for the interview name first, run an iterative ambiguity-reduction interview, score readiness metrics, and produce a readiness verdict for whether the task is ready for planning.
+description: gather structured requirements for a task and save them as a markdown interview artifact under aii/interviews. use when a request is broad, underspecified, high-impact, ambiguous, or when the user wants requirements clarified before planning or implementation. suggest an interview name when missing, run an iterative ambiguity-reduction interview, score readiness metrics, and produce a readiness verdict for whether the task is ready for planning.
 ---
 
 # deep-interview
@@ -13,10 +13,20 @@ This skill is for clarification only. Do not implement code, modify plans, or ex
 
 ## Workflow
 
-### 1) Ask for the interview name first
-Do not proceed until the user gives the interview name.
+### 1) Resolve interview name with suggestion-first behavior
+If the user did not provide an interview name, generate a reasonable default name suggestion from the request context.
 
-Use that exact name for the artifact path:
+Ask for confirmation using natural language like:
+
+`You didn't specify a name. Is "<suggested-name>" okay?`
+
+Do not send a separate name-only turn when you already have other clarification questions to ask. Include the name confirmation in the same response paragraph/block as the rest of your current interview questions.
+
+If the user explicitly provides a different name (for example: `use "<name>"`), use that user-provided name.
+
+If the user ignores the name prompt but answers other interview questions, continue the interview and keep using the generated suggested name as the active default.
+
+Use the resolved name for the artifact path:
 
 `aii/interviews/<name>.md`
 
@@ -221,7 +231,9 @@ Ready for planning | Ready for planning with caveats | Not ready for planning
 ```
 
 ## Rules
-- Ask for the interview name first.
+- If interview name is missing, suggest one and include that confirmation alongside other current interview questions instead of sending a standalone name-only prompt.
+- If the user explicitly provides a different name, adopt it.
+- If the user ignores the name prompt while answering other questions, keep the generated suggested name.
 - Do not implement anything.
 - Do not generate a plan.
 - Do not modify existing plan files.
