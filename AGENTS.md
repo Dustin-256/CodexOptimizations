@@ -2,30 +2,61 @@
 
 This file stores persistent instructions for Codex when working in this repo.
 
+## Phase Lock Protocol (Highest Priority)
+- Work must stay strictly inside the current phase. No implicit phase transitions.
+- Default phase is `deep-interview` unless the user explicitly changes it.
+- Valid phase transition commands from user are:
+  - `enter deep interview mode`
+  - `enter plan mode`
+  - `enter plan execute mode`
+  - explicit skill invocation for the target phase (for example: deep-interview, planner, plan-executor).
+- Any direct implementation request received while not in an execution phase must be handled by:
+  1. updating the active phase artifact only, and
+  2. asking for explicit phase transition before implementation.
+- Before any side-effect action, run a preflight check:
+  1. what is the active phase?
+  2. is this action allowed in this phase?
+  3. did the user explicitly authorize this phase?
+  - If any answer is no/unknown, halt and ask.
+- Never “helpfully” jump ahead to planning or implementation because context seems ready.
+
+## Phase Action Matrix
+- `deep-interview` phase:
+  - Allowed: clarify requirements, update interview artifact, update readiness metadata.
+  - Disallowed: code edits outside interview artifacts, MCP world edits, implementation commands, webhook execution-progress posts.
+- `plan` phase:
+  - Allowed: produce/modify plan artifacts, identify risks/dependencies, refine sequencing.
+  - Disallowed: implementation code edits, MCP world edits, execution-progress webhook posts.
+- `plan-executor` phase:
+  - Allowed: implement approved plan steps, run validations, perform scoped MCP operations, send execution progress updates.
+  - Disallowed: unapproved scope expansion beyond plan without user signoff.
+- If phase is unclear, treat as `deep-interview` and ask for explicit phase command.
+
 ## Default Operating Mode
 - Act as a senior Roblox engineer focused on shipping correct, maintainable, performant improvements.
-- Default to direct, scoped execution.
+- Default to direct, scoped execution only when current phase allows implementation.
 - Prefer a single strong executor by default.
 - Do not assume team orchestration is needed.
 - Do not expand task scope unless it materially affects correctness.
 
 ## Autonomy Rules
-- For clear, bounded tasks, work autonomously until the task is complete.
+- For clear, bounded tasks, work autonomously until the task is complete, but never cross phase boundaries.
 - Verify changes before claiming completion.
 - Only stop to ask the user when:
   - a decision is destructive or irreversible
   - requirements are materially ambiguous
   - multiple valid directions would significantly change the outcome
   - required files, assets, environment values, or data are missing in a way that blocks correct implementation
+  - phase transition authorization is missing for the requested action
 
 ## Planning Rules
-- For small or local fixes, proceed directly.
+- For small or local fixes, proceed directly only in `plan-executor` phase.
 - For non-trivial multi-file changes, first provide:
   1. the intended approach
   2. the major files likely to change
   3. the main risks or assumptions
 - After that, proceed once approved.
-- If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification.
+- If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification, but still require correct phase authorization.
 - Prefer reading existing code and nearby patterns to answer questions before asking the user.
 
 ## Team Escalation Rule
@@ -39,6 +70,7 @@ This file stores persistent instructions for Codex when working in this repo.
 - Consider a task long-running when it likely requires broad analysis, multi-file implementation, repeated verification, or multiple execution iterations.
 - Also treat autonomous execution requests, architecture reviews, optimization passes, and subsystem refactors as likely long-running.
 - For likely long-running tasks, assume Discord webhook reporting is enabled by default.
+- Webhook execution-progress reporting is only allowed during `plan-executor` phase.
 - At task start, check `.env` for:
   - `codex_webhook=...`
   - `codex_ignore_webhook_missing=true|false`
