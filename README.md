@@ -80,7 +80,9 @@ Typical workflow:
 - `--uninstall`:
   remove scaffolded content and restore `AGENTS.md` from `AGENTS.md.bak` when available
 - `--webhook URL`:
-  save `codex_webhook=URL` to `.env` for long-task completion reports (and bootstrap run reports)
+  save `codex_webhook=URL` to `.env` for embed-based webhook reports (including bootstrap run reports)
+- `--always-skip-missing-webhook`:
+  save `codex_ignore_webhook_missing=true` to `.env` so runs do not halt when `codex_webhook` is missing
 
 Examples:
 
@@ -97,8 +99,11 @@ python3 bootstrap.py --no-install-skills
 # Remove scaffold and restore AGENTS backup
 python3 bootstrap.py --uninstall
 
-# Save webhook to .env and report run status
+# Save webhook to .env and report run status using embeds
 python3 bootstrap.py --webhook https://discord.com/api/webhooks/...
+
+# Persist skip behavior when webhook is intentionally not configured
+python3 bootstrap.py --always-skip-missing-webhook
 ```
 
 ## Uninstall behavior
@@ -129,4 +134,4 @@ python3 bootstrap.py --webhook https://discord.com/api/webhooks/...
 - The bootstrap script fetches canonical `AGENTS.md` and skill definitions from this repository's `main` branch.
 - Existing `AGENTS.md` is backed up to `AGENTS.md.bak` before install.
 - If a target skill path in `~/.codex/skills` already exists and is not the expected symlink, `--force` is required.
-- Keep `.env` gitignored so `codex_webhook` remains local.
+- Keep `.env` gitignored so `codex_webhook` and `codex_ignore_webhook_missing` remain local.

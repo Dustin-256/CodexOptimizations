@@ -38,11 +38,15 @@ This file stores persistent instructions for Codex when working in this repo.
 - Detect when a task is likely to be long-running or multi-step.
 - Consider a task long-running when it likely requires broad analysis, multi-file implementation, repeated verification, or multiple execution iterations.
 - Also treat autonomous execution requests, architecture reviews, optimization passes, and subsystem refactors as likely long-running.
-- For likely long-running tasks, ask once at the start whether the user wants a Discord webhook notification when the task is complete.
-- If the user wants completion notification:
-  - check `.env` for `codex_webhook=...`
-  - if `codex_webhook` is missing or empty, ask the user for the webhook URL
-  - use the configured webhook only for completion notification unless the user explicitly asks for progress updates
+- For likely long-running tasks, assume Discord webhook reporting is enabled by default.
+- At task start, check `.env` for:
+  - `codex_webhook=...`
+  - `codex_ignore_webhook_missing=true|false`
+- If `codex_webhook` is present, send webhook updates using embeds (not plain text), including concise progress updates at meaningful plan-step boundaries and completion/blocker states.
+- If `codex_webhook` is missing and `codex_ignore_webhook_missing` is not `true`, warn and halt before continuing until the user either:
+  - provides a webhook URL, or
+  - explicitly confirms they want to skip webhook reporting
+- If the user confirms they always want to skip webhook setup, set `codex_ignore_webhook_missing=true` in `.env` and stop halting on future missing-webhook checks.
 - Do not ask about webhook notification for short debugging, small edits, or simple questions.
 - Do not ask repeatedly within the same task once the user's preference is known.
 - Treat Discord webhook URLs as sensitive secrets. Do not echo them in logs, reports, or final responses.

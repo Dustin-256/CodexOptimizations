@@ -152,28 +152,46 @@ This value may be overridden in the plan metadata.
 
 Do not run a ticking timer. Instead, compute elapsed time from timestamps whenever state changes or a notification decision is needed.
 
-If the plan was initially judged long-running, ask once at the start whether the user wants webhook notifications.
+For likely long-running plan execution, assume webhook reporting is enabled by default.
 
 Even if the plan was not initially judged long-running, if computed runtime exceeds the auto-notify threshold, send notification automatically when possible.
 
-Webhook source:
+Webhook source and missing-webhook gate:
 - check `.env` for `codex_webhook=...`
-- if no webhook is configured and notification is needed, ask the user for the URL
+- check `.env` for `codex_ignore_webhook_missing=true|false`
+- if no webhook is configured and `codex_ignore_webhook_missing` is not `true`, warn and halt execution until the user either:
+  - provides a webhook URL, or
+  - explicitly confirms skipping webhook reporting for this run
+- if the user explicitly confirms they always want to skip this prompt in future runs, set `codex_ignore_webhook_missing=true` in `.env`
 
-Send webhook notifications for:
-- plan completion
+Webhook payload style:
+- always use Discord embeds (not plain text content)
+- keep embeds concise, execution-focused, and low-noise
+
+Send webhook embed updates for:
+- plan start (once runtime begins)
+- each top-level step transition (started/completed/blocked)
 - blockers that pause execution and require user input
+- plan completion
 
-Default blocker webhook content:
+Default per-step progress embed fields:
+- plan name
+- step id and title
+- status transition (started/completed/blocked)
+- short execution note (one line)
+- elapsed runtime in human-readable form
+
+Default blocker webhook embed fields:
 - plan name
 - blocked step id and title
 - short blocker reason
 - current runtime in human-readable form
 - note that user input is needed
 
-Default completion webhook content:
+Default completion webhook embed fields:
 - plan name
 - total runtime in human-readable form
+- completed step count vs total step count
 - note that execution completed
 
 Do not include secrets or excessive logs in webhook messages.

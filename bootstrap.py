@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -22,6 +23,8 @@ SKILLS = (
 )
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
 ENV_PATH = BASE_DIR / ".env"
+ENV_KEY_WEBHOOK = "codex_webhook"
+ENV_KEY_IGNORE_WEBHOOK_MISSING = "codex_ignore_webhook_missing"
 AGENTS_PATH = BASE_DIR / "AGENTS.md"
 AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
 AII_PATH = BASE_DIR / "aii"
@@ -119,7 +122,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--webhook",
         metavar="URL",
-        help="Persist Discord webhook URL to .env as codex_webhook for long-task completion reports.",
+        help="Persist Discord webhook URL to .env as codex_webhook for embed webhook reports.",
+    )
+    parser.add_argument(
+        "--always-skip-missing-webhook",
+        action="store_true",
+        help=(
+            "Persist codex_ignore_webhook_missing=true in .env so runs do not halt when "
+            "codex_webhook is missing."
+        ),
     )
     return parser.parse_args()
 
@@ -136,11 +147,40 @@ def truncate_discord_message(message: str, limit: int = 2000) -> str:
     return message[: limit - 3] + "..."
 
 
-def send_webhook_report(webhook_url: str | None, message: str) -> None:
+def _build_webhook_embed(action: str, status: str, details: str) -> dict[str, object]:
+    color_by_status = {
+        "succeeded": 0x2ECC71,
+        "failed": 0xE74C3C,
+    }
+    emoji_by_status = {
+        "succeeded": "✅",
+        "failed": "❌",
+    }
+    normalized = status if status in color_by_status else "succeeded"
+    return {
+        "title": f"{emoji_by_status[normalized]} bootstrap.py {action} {normalized}",
+        "description": "Bootstrap execution report",
+        "color": color_by_status[normalized],
+        "fields": [
+            {"name": "Repository", "value": str(BASE_DIR), "inline": False},
+            {"name": "Details", "value": truncate_discord_message(details, 1000), "inline": False},
+        ],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def send_webhook_report(
+    webhook_url: str | None, *, action: str, status: str, details: str
+) -> None:
     if not webhook_url:
         return
 
-    payload = json.dumps({"content": truncate_discord_message(message)}).encode("utf-8")
+    payload = json.dumps(
+        {
+            "embeds": [_build_webhook_embed(action=action, status=status, details=details)],
+            "allowed_mentions": {"parse": []},
+        }
+    ).encode("utf-8")
     request = Request(
         webhook_url,
         data=payload,
@@ -159,15 +199,27 @@ def send_webhook_report(webhook_url: str | None, message: str) -> None:
 
 
 def load_codex_webhook(env_path: Path = ENV_PATH) -> str | None:
+    return load_env_value(ENV_KEY_WEBHOOK, env_path=env_path)
+
+
+def load_codex_ignore_webhook_missing(env_path: Path = ENV_PATH) -> bool:
+    value = load_env_value(ENV_KEY_IGNORE_WEBHOOK_MISSING, env_path=env_path)
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_env_value(key: str, env_path: Path = ENV_PATH) -> str | None:
     if not env_path.exists():
         return None
+    key_prefix = f"{key}="
     for line in env_path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         if stripped.startswith("export "):
             stripped = stripped[len("export ") :].lstrip()
-        if not stripped.startswith("codex_webhook="):
+        if not stripped.startswith(key_prefix):
             continue
         value = stripped.split("=", 1)[1].strip()
         return value.strip("\"'")
@@ -175,7 +227,26 @@ def load_codex_webhook(env_path: Path = ENV_PATH) -> str | None:
 
 
 def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
-    new_entry = f"codex_webhook={webhook_url}"
+    save_env_value(ENV_KEY_WEBHOOK, webhook_url, env_path=env_path)
+    print("updated .env with codex_webhook for embed webhook reports")
+
+
+def save_codex_ignore_webhook_missing(
+    should_ignore: bool, env_path: Path = ENV_PATH
+) -> None:
+    save_env_value(
+        ENV_KEY_IGNORE_WEBHOOK_MISSING,
+        "true" if should_ignore else "false",
+        env_path=env_path,
+    )
+    print(
+        "updated .env with codex_ignore_webhook_missing="
+        + ("true" if should_ignore else "false")
+    )
+
+
+def save_env_value(key: str, value: str, env_path: Path = ENV_PATH) -> None:
+    new_entry = f"{key}={value}"
     lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
 
     replaced = False
@@ -185,7 +256,7 @@ def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
         comparison = stripped
         if comparison.startswith("export "):
             comparison = comparison[len("export ") :].lstrip()
-        if comparison.startswith("codex_webhook="):
+        if comparison.startswith(f"{key}="):
             if not replaced:
                 new_lines.append(new_entry)
                 replaced = True
@@ -196,7 +267,6 @@ def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
         new_lines.append(new_entry)
 
     env_path.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
-    print("updated .env with codex_webhook for long-task completion reports")
 
 
 def build_remote_files() -> dict[str, str]:
@@ -331,7 +401,18 @@ def main() -> None:
     args = parse_args()
     if args.webhook:
         save_codex_webhook(args.webhook)
+    if args.always_skip_missing_webhook:
+        save_codex_ignore_webhook_missing(True)
+
     webhook_url = args.webhook or load_codex_webhook()
+    ignore_missing_webhook = load_codex_ignore_webhook_missing()
+    if not webhook_url and not ignore_missing_webhook:
+        raise RuntimeError(
+            "codex_webhook is missing. Set it in .env or run with "
+            "--webhook URL. To always skip this gate, run with "
+            "--always-skip-missing-webhook once."
+        )
+
     action = "uninstall" if args.uninstall else "install"
     try:
         if args.uninstall:
@@ -340,13 +421,16 @@ def main() -> None:
             install(force=args.force, install_skills=not args.no_install_skills)
         send_webhook_report(
             webhook_url,
-            f"✅ bootstrap.py {action} succeeded in `{BASE_DIR}`",
+            action=action,
+            status="succeeded",
+            details="scaffold operation completed successfully",
         )
     except Exception as exc:
         send_webhook_report(
             webhook_url,
-            f"❌ bootstrap.py {action} failed in `{BASE_DIR}` with "
-            f"`{type(exc).__name__}: {exc}`",
+            action=action,
+            status="failed",
+            details=f"{type(exc).__name__}: {exc}",
         )
         raise
 
