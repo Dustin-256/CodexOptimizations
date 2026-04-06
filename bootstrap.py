@@ -18,11 +18,38 @@ CACHE_SETUP_PATH = BASE_DIR / REMOTE_SETUP_PATH
 CACHE_VERSION_PATH = BASE_DIR / "aii" / "version.txt"
 
 
+def fetch_text_via_curl(url: str) -> str | None:
+    commands = (
+        ("curl", "-fsSL", url),
+        ("curl.exe", "-fsSL", url),
+    )
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        return completed.stdout
+    return None
+
+
 def fetch_text(url: str) -> str:
     request = Request(
         url, headers={"User-Agent": "codex-optimizations-bootstrap-launcher"})
-    with urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8")
+    try:
+        with urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8")
+    except URLError as exc:
+        # Some Python distributions (notably certain MSYS2 installs on Windows)
+        # do not have a complete CA trust chain configured.
+        fallback = fetch_text_via_curl(url)
+        if fallback is not None:
+            return fallback
+        raise exc
 
 
 def read_local_version() -> str | None:

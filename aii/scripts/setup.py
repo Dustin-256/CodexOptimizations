@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import URLError
@@ -615,6 +616,34 @@ def uninstall() -> None:
     update_gitignore_for_uninstall()
 
 
+def prompt_for_webhook_if_missing(
+    webhook_url: str | None, ignore_missing_webhook: bool
+) -> str | None:
+    if webhook_url or ignore_missing_webhook:
+        return webhook_url
+
+    if not sys.stdin.isatty():
+        print(
+            "warning: codex_webhook is missing; continuing without webhook reports. "
+            "Use --always-skip-missing-webhook to suppress this warning."
+        )
+        return None
+
+    print("codex_webhook is missing.")
+    answer = input("Would you like to enter one now? [y/N]: ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print("continuing without webhook reports")
+        return None
+
+    entered = input("Paste Discord webhook URL: ").strip()
+    if not entered:
+        print("no webhook URL provided; continuing without webhook reports")
+        return None
+
+    save_codex_webhook(entered)
+    return entered
+
+
 def main() -> None:
     args = parse_args()
     resolved_project_type = detect_project_type(args.project_type)
@@ -625,12 +654,9 @@ def main() -> None:
 
     webhook_url = args.webhook or load_codex_webhook()
     ignore_missing_webhook = load_codex_ignore_webhook_missing()
-    if not webhook_url and not ignore_missing_webhook:
-        raise RuntimeError(
-            "codex_webhook is missing. Set it in .env or run with "
-            "--webhook URL. To always skip this gate, run with "
-            "--always-skip-missing-webhook once."
-        )
+    webhook_url = prompt_for_webhook_if_missing(
+        webhook_url, ignore_missing_webhook
+    )
 
     if args.test_webhook_embed:
         if not webhook_url:

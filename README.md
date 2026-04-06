@@ -2,15 +2,45 @@
 
 Utilities and scaffolding for adding reusable Codex workflows to a repository.
 
-## Contributor Quick Start
+## One-Line Install (Users)
 
-If you cloned this repository to contribute, run:
+Run one command to download `bootstrap.py`, execute it once, then delete it.
 
-```bash
-python3 init_repo.py
+### Windows (PowerShell)
+
+```powershell
+$tmp = Join-Path $env:TEMP "codex-bootstrap.py"; Invoke-WebRequest "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -OutFile $tmp; try { py -3 $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 ```
 
-This installs the managed `pre-push` version hook for contributors.
+### Windows (PowerShell, `--force`)
+
+```powershell
+$tmp = Join-Path $env:TEMP "codex-bootstrap.py"; Invoke-WebRequest "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -OutFile $tmp; try { py -3 $tmp --force } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+```
+
+### Linux
+
+```bash
+tmp="$(mktemp)"; curl -fsSL "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -o "$tmp" && python3 "$tmp"; rc=$?; rm -f "$tmp"; exit $rc
+```
+
+### Linux (`--force`)
+
+```bash
+tmp="$(mktemp)"; curl -fsSL "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -o "$tmp" && python3 "$tmp" --force; rc=$?; rm -f "$tmp"; exit $rc
+```
+
+### macOS
+
+```bash
+tmp="$(mktemp)"; curl -fsSL "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -o "$tmp" && python3 "$tmp"; rc=$?; rm -f "$tmp"; exit $rc
+```
+
+### macOS (`--force`)
+
+```bash
+tmp="$(mktemp)"; curl -fsSL "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main/bootstrap.py" -o "$tmp" && python3 "$tmp" --force; rc=$?; rm -f "$tmp"; exit $rc
+```
 
 ## Why this is useful
 
