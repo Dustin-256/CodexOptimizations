@@ -15,7 +15,7 @@ It keeps planning and execution artifacts in one predictable place so work can b
 - persist resumable task state in `metadata/`
 
 ## Layout
-- `skills/`: opt-in skills such as `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
+- `skills/`: opt-in skills such as `code-review`, `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
 - `scripts/`: reusable helpers such as `send_webhook_embed.py` for standardized Discord embeds
 - `interviews/`: saved markdown requirement handoff documents
 - `plans/`: machine-readable YAML execution plans
@@ -23,6 +23,7 @@ It keeps planning and execution artifacts in one predictable place so work can b
 
 ## Skill roles
 
+- `code-review`: reviews code-only changes against repo instructions and coding standards, then proposes or applies fixes.
 - `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
 - `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
 - `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.

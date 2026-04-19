@@ -73,6 +73,7 @@ Running the bootstrap creates or updates:
 - `aii/metadata/.gitkeep`
 - `aii/metadata/state.yaml`
 - `aii/skills/*/SKILL.md` for:
+  - `code-review`
   - `deep-interview`
   - `planner`
   - `plan-executor`
@@ -86,6 +87,7 @@ The installed `aii/scripts/send_webhook_embed.py` script provides a shared, embe
 ## Skill roles
 
 Installed skills are designed to work as a pipeline:
+- `code-review`: reviews code-only changes against repo instructions and coding standards, then proposes or applies fixes.
 - `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
 - `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
 - `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.

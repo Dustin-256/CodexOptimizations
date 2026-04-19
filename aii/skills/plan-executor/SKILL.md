@@ -196,8 +196,18 @@ Default completion webhook embed fields:
 
 Do not include secrets or excessive logs in webhook messages.
 
-### 9) Completion
-When all top-level steps are completed:
+### 9) Post-run QA pass
+After all top-level steps are completed and before the plan is finalized:
+- collect the files changed by the current `plan-executor` run
+- if no files were changed, skip this pass
+- run the `code-review` skill automatically on only those changed files
+- treat this as an autonomous QA pass, not a user-facing review prompt
+- if the review finds violations, patch the changed files and re-run the review until the changed files are clean or no safe fix remains
+
+Do not expand this QA pass beyond files changed by `plan-executor` in the current run.
+
+### 10) Completion
+When all top-level steps are completed and the post-run QA pass is finished:
 - set plan `status` to `completed`
 - clear `current_step_id`
 - set plan `runtime.completed_at`

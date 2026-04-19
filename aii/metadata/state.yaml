@@ -1,11 +1,11 @@
 last_task:
-  skill: deep-interview
-  target_type: interview
-  target_name: agents-md-style-guidelines
-  target_path: aii/interviews/agents-md-style-guidelines.md
+  skill: plan-executor
+  target_type: plan
+  target_name: code-review-skill-and-qa-hook
+  target_path: aii/plans/code-review-skill-and-qa-hook.yaml
   state: completed
   resumable: true
-  summary: Interviewing style-guideline updates for AGENTS.md
-  updated_at: 2026-04-19T15:35:29-04:00
+  summary: Completed execution of the code-review skill and QA hook plan
+  updated_at: 2026-04-19T19:46:50-04:00
 
 history: []
