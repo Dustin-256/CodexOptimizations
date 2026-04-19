@@ -149,6 +149,8 @@ Suggested decision logic:
 
 Do not overfit to rigid math. Use judgment, but keep it consistent.
 
+If the verdict is `Ready for planning with caveats`, include a `Caveats` section immediately after the verdict. Use a short numbered list that turns the remaining gaps into direct follow-up questions. Derive those questions from both the recorded gaps and the interview context. If a proposed direction has a tradeoff, call out the tradeoff, mention a concise high-level alternative, and ask the user to confirm they understand the risk and want to proceed or switch to the alternative. Omit the `Caveats` section entirely when the verdict is `Ready for planning` or `Not ready for planning`.
+
 ### 6) Save the interview artifact
 Write the final artifact to:
 
@@ -224,6 +226,11 @@ Use this exact structure:
 
 ## Readiness Verdict
 Ready for planning | Ready for planning with caveats | Not ready for planning
+
+## Caveats
+Only include this section when the verdict is `Ready for planning with caveats`.
+1. ...
+2. ...
 
 ## Remaining Gaps
 - ...
