@@ -4,7 +4,7 @@
 
 ## Why this is useful
 
-It keeps planning and execution artifacts in one predictable place so work can be resumed cleanly across sessions and collaborators.
+It keeps planning and execution artifacts in one predictable place so work can be resumed cleanly across sessions and collaborators, regardless of whether the repository is bootstrapped for Codex or Claude Code.
 
 ## What it can do
 
@@ -40,4 +40,4 @@ Typical flow: interview -> plan -> execute -> modify (if needed) -> resume later
 4. Execute or modify the plan while persisting progress in `metadata/`.
 5. Resume later using the saved state instead of starting over.
 
-Use `python bootstrap.py` to recreate the baseline scaffold if needed.
+TTY runs with no flags open the interactive setup wizard. Use `python3 bootstrap.py --no-interactive --tool=codex` or `python3 bootstrap.py --no-interactive --tool=claude` to install a specific profile directly.

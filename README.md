@@ -1,6 +1,6 @@
 # CodexOptimizations
 
-Utilities and scaffolding for adding reusable Codex workflows to a repository.
+Utilities and scaffolding for adding reusable Codex and Claude Code workflows to a repository.
 
 ## One-Line Install (Users)
 
@@ -45,8 +45,8 @@ tmp="$(mktemp)"; curl -fsSL "https://raw.githubusercontent.com/Dustin-256/CodexO
 ## Why this is useful
 
 Most teams lose time repeating the same planning and execution setup for AI-assisted work. This repo gives you a reusable baseline so every project starts with:
-- a consistent `AGENTS.md` operating model
-- reusable Codex skills for requirement capture, planning, execution, and resuming work
+- a consistent structured workflow for interviews, planning, execution, and resume
+- a Codex-default setup that can also target Claude Code with `--tool=claude`
 - a stable folder structure for interview artifacts, machine-readable plans, and task metadata
 
 Result: faster setup, less process drift, and easier handoff between sessions.
@@ -55,17 +55,19 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 
 `bootstrap.py` can:
 - scaffold an `aii/` workspace (`skills/`, `scripts/`, `interviews/`, `plans/`, `metadata/`)
-- fetch and install canonical `AGENTS.md` and skill definitions from this repo
+- fetch and install canonical instruction files and workflow assets from this repo
+- install a Codex profile or a Claude Code profile from the same setup engine
+- launch a full interactive arrow-key setup wizard when run in a TTY with no flags
 - fetch and install canonical utility scripts (including webhook embed sender) from this repo
 - back up an existing `AGENTS.md` to `AGENTS.md.bak` before replacing it
+- back up an existing `CLAUDE.md` to `CLAUDE.md.bak` before replacing it
 - symlink skills into `~/.codex/skills` so Codex can use them directly
 - manage `.gitignore` entries for generated `aii` artifacts
 - uninstall the scaffold and restore previous agent config
 
 ## What it installs
 
-Running the bootstrap creates or updates:
-- `AGENTS.md` (fetched from this repo's `main` branch)
+Running the bootstrap always creates or updates:
 - `aii/README.md`
 - `aii/scripts/send_webhook_embed.py`
 - `aii/interviews/.gitkeep`
@@ -79,6 +81,15 @@ Running the bootstrap creates or updates:
   - `plan-executor`
   - `plan-modifier`
   - `resume-last-task`
+
+Tool-specific outputs:
+- Codex default:
+  - `AGENTS.md`
+  - `~/.codex/skills/<skill>` symlinks, unless `--no-install-skills` is used
+- Claude Code:
+  - `CLAUDE.md`
+  - `.claude/settings.json`
+  - `.claude/skills/*/SKILL.md`
 
 It also updates `.gitignore` to keep generated workflow artifacts untracked.
 
@@ -102,7 +113,7 @@ Use them independently when needed, but the normal flow is interview -> plan -> 
 - Network access to GitHub raw content (`raw.githubusercontent.com`)
 - Filesystem permission to write:
   - the current repository
-  - `~/.codex/skills` (unless `--no-install-skills` is used)
+  - `~/.codex/skills` for Codex installs unless `--no-install-skills` is used
 
 ## Usage
 
@@ -111,6 +122,8 @@ From the repository root:
 ```bash
 python3 bootstrap.py
 ```
+
+TTY runs with no flags open the interactive setup wizard by default. Use `--no-interactive` to force the old non-interactive behavior.
 
 ### Contributor Init (Repo Clone)
 
@@ -131,32 +144,44 @@ Typical workflow:
 
 ### Options
 
+- `--tool codex|claude`:
+  choose the tool profile to install; defaults to `codex`
 - `--force`:
   overwrite existing scaffold files and replace existing skill links
 - `--no-install-skills`:
-  scaffold repository files only; skip `~/.codex/skills` symlinks
+  skip `~/.codex/skills` symlinks for Codex installs
 - `--uninstall`:
-  remove scaffolded content and restore `AGENTS.md` from `AGENTS.md.bak` when available
+  remove scaffolded content and restore `AGENTS.md` or `CLAUDE.md` from backups when available
 - `--webhook URL`:
   save `codex_webhook=URL` to `.env` for embed-based webhook reports (including bootstrap run reports)
 - `--always-skip-missing-webhook`:
   save `codex_ignore_webhook_missing=true` to `.env` so runs do not halt when `codex_webhook` is missing
 - `--test-webhook-embed`:
   send a test embed using current webhook settings, then exit
+- `--interactive`:
+  force the full interactive arrow-key wizard
+- `--no-interactive`:
+  disable the wizard even in a TTY
 
 Examples:
 
 ```bash
-# Fresh install
+# Interactive install with prompts
 python3 bootstrap.py
 
+# Non-interactive Codex install
+python3 bootstrap.py --no-interactive
+
+# Non-interactive Claude install
+python3 bootstrap.py --no-interactive --tool=claude
+
 # Reinstall and overwrite existing scaffold files
-python3 bootstrap.py --force
+python3 bootstrap.py --tool=claude --force
 
-# Scaffold repo only (no ~/.codex/skills symlinks)
-python3 bootstrap.py --no-install-skills
+# Codex scaffold without ~/.codex/skills symlinks
+python3 bootstrap.py --tool=codex --no-install-skills
 
-# Remove scaffold and restore AGENTS backup
+# Remove scaffold and restore backups
 python3 bootstrap.py --uninstall
 
 # Save webhook to .env and report run status using embeds
@@ -187,8 +212,9 @@ python3 aii/scripts/send_webhook_embed.py \
 
 `--uninstall` does the following:
 - removes symlinked skills for this scaffold from `~/.codex/skills`
+- removes managed Claude project files such as `.claude/settings.json` and `.claude/skills/*`
 - removes `aii/`
-- restores `AGENTS.md` from `AGENTS.md.bak` (or removes `AGENTS.md` if no backup exists)
+- restores `AGENTS.md` or `CLAUDE.md` from backups when available
 - removes the bootstrap-managed block from `.gitignore`
 
 ## Repository layout
@@ -196,7 +222,8 @@ python3 aii/scripts/send_webhook_embed.py \
 ```text
 .
 ├── bootstrap.py
-├── AGENTS.md
+├── AGENTS.md / CLAUDE.md
+├── .claude/
 ├── todo.md
 └── aii/
     ├── README.md
@@ -210,7 +237,8 @@ python3 aii/scripts/send_webhook_embed.py \
 
 ## Notes
 
-- The bootstrap script fetches canonical `AGENTS.md` and skill definitions from this repository's `main` branch.
-- Existing `AGENTS.md` is backed up to `AGENTS.md.bak` before install.
+- The bootstrap script fetches the cached setup engine from this repository's `main` branch unless the local cached version is already current.
+- Existing `AGENTS.md` and `CLAUDE.md` are backed up before install when present.
 - If a target skill path in `~/.codex/skills` already exists and is not the expected symlink, `--force` is required.
+- Claude installs use project-scoped Claude skills under `.claude/skills/`.
 - Keep `.env` gitignored so `codex_webhook` and `codex_ignore_webhook_missing` remain local.
