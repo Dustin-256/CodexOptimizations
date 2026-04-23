@@ -497,6 +497,11 @@ def build_scaffold_files(project_type: str, tool_name: str) -> dict[str, str]:
 
 def write_file(relative_path: str, content: str, force: bool) -> None:
     path = BASE_DIR / relative_path
+    if relative_path == "aii/version.txt":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        print(f"wrote {path}")
+        return
     if path.exists() and not force and relative_path not in ALWAYS_OVERWRITE_FILES:
         existing_content = path.read_text(encoding="utf-8")
         if existing_content == content:
