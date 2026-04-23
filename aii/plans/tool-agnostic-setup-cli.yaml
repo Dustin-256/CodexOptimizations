@@ -1,0 +1,113 @@
+name: tool-agnostic-setup-cli
+source_interview: aii/interviews/tool-agnostic-setup-cli.md
+status: completed
+current_step_id: null
+
+runtime:
+  started_at: 2026-04-22T17:52:59-04:00
+  last_active_at: 2026-04-22T20:41:20-04:00
+  completed_at: 2026-04-22T20:41:20-04:00
+  auto_notify_after_seconds: 300
+  notification_sent: false
+
+metadata:
+  created_at: 2026-04-22T17:51:52-04:00
+  last_updated: 2026-04-22T20:41:20-04:00
+  readiness_verdict: Ready for planning
+
+steps:
+  - id: step-1
+    kind: standard
+    title: Define tool registry and output model
+    description: Establish a data-driven tool registry for setup profiles, with Codex as the default and Claude as a first-class profile. Define how each profile maps to instruction files, command files, subagent files, and any tool-specific install targets while keeping the shared workflow shape consistent.
+    status: completed
+    notes:
+      - Kept bootstrap.py as a thin wrapper around the setup engine.
+      - Implemented a registry-driven setup model with Codex and Claude profiles in aii/scripts/setup.py.
+      - Added repo templates for Claude instructions and local project instructions.
+      - Claude support uses CLAUDE.md plus project-scoped Claude skills under .claude/skills.
+    verification:
+      - python3 -m py_compile aii/scripts/setup.py bootstrap.py init_repo.py
+    runtime:
+      started_at: 2026-04-22T17:52:59-04:00
+      last_active_at: 2026-04-22T18:02:21-04:00
+      completed_at: 2026-04-22T18:02:21-04:00
+    blockers: []
+    substeps: []
+
+  - id: step-2
+    kind: standard
+    title: Build interactive setup flow
+    description: Add an interactive TTY mode to the setup script so the full setup flow can be driven with arrow keys and Enter. Preserve non-interactive flag-based execution so bootstrap, automation, and CI still work without prompts.
+    status: completed
+    notes:
+      - Added a dependency-free interactive prompt system with arrow-key navigation and confirmation screens.
+      - Integrated the missing-webhook gate into the interactive flow so it does not fall back to plain yes or no prompts.
+    verification:
+      - Validated the interactive TTY flow in a clean temp repo, including tool selection, full prompt navigation, and the webhook decision screen.
+      - python3 aii/scripts/setup.py --help
+    runtime:
+      started_at: 2026-04-22T18:02:21-04:00
+      last_active_at: 2026-04-22T18:06:33-04:00
+      completed_at: 2026-04-22T18:06:33-04:00
+    blockers: []
+    substeps: []
+
+  - id: step-3
+    kind: standard
+    title: Generate Claude-native scaffold
+    description: Add Claude profile output that writes CLAUDE.md and Claude-specific project files from the shared registry. Map the existing workflow concepts into Claude-native commands, and reserve subagents for workflows that genuinely need autonomous behavior or distinct permissions.
+    status: completed
+    notes:
+      - Added Claude instruction and settings templates.
+      - Wrote .claude/settings.json and .claude/skills/* during Claude installs.
+    verification:
+      - Validated direct Claude installs in clean temp repos with python3 /home/dev/Coding/CodexOptimizations/aii/scripts/setup.py --no-interactive --tool=claude --force
+      - Validated wrapper-based Claude installs in a clean temp repo with python3 ./bootstrap.py --no-interactive --tool=claude --force
+    runtime:
+      started_at: 2026-04-22T18:06:33-04:00
+      last_active_at: 2026-04-22T18:08:08-04:00
+      completed_at: 2026-04-22T18:08:08-04:00
+    blockers: []
+    substeps: []
+
+  - id: step-4
+    kind: standard
+    title: Update documentation and user guidance
+    description: Refresh README and related repository docs to explain the Codex default, the Claude tool selector, the interactive arrow-key setup flow, and the command-first mapping for Claude.
+    status: completed
+    notes:
+      - Updated the top-level README to describe tool profiles, the interactive wizard, and Claude-specific generated files.
+      - Updated the generated aii/README template and the repo-local aii/README.
+      - Added ProjectInstructions.md so the repo's checked-in AGENTS instructions have a matching project instruction file.
+    verification:
+      - Reviewed README.md, aii/README.md, agents/claude.md, and setup.py --help output for consistency with the implemented flags and defaults.
+    runtime:
+      started_at: 2026-04-22T18:08:08-04:00
+      last_active_at: 2026-04-22T18:09:31-04:00
+      completed_at: 2026-04-22T18:09:31-04:00
+    blockers: []
+    substeps: []
+
+  - id: step-5
+    kind: standard
+    title: Validate in a clean temporary repository
+    description: Recreate the setup process in a fresh temporary directory using the same bootstrap/init flow a user would run, then verify the interactive and non-interactive paths, the Codex default, the Claude profile, and the reported initialization error condition.
+    status: completed
+    notes:
+      - Validated direct setup installs, wrapper installs, and the interactive wizard in clean temp repos.
+      - A repo-root uninstall happened during validation because of an incorrect working directory in one test command; the repo scaffold was restored immediately and the validated setup files were restored from the temp copy.
+      - After the restore, the version template was corrected back to v7 so bootstrap cache refresh remains reliable.
+      - Added uninstall guards so Claude-only installs do not delete unrelated AGENTS.md files, and Codex-only installs do not delete unrelated CLAUDE.md files.
+      - Added an idempotent file-write guard so first-time bootstrap installs no longer fail when cached setup.py and version.txt already exist before setup runs.
+    verification:
+      - Confirmed generated temp repos include aii/version.txt with v7 after install.
+      - Re-ran python3 -m py_compile aii/scripts/setup.py bootstrap.py init_repo.py after the restore and version correction.
+      - Validated temp uninstall preservation with a preexisting AGENTS.md during Claude uninstall and a preexisting CLAUDE.md during Codex uninstall.
+      - Validated python3 ./bootstrap.py --no-interactive --tool=claude succeeds in a clean temp repo without --force and keeps aii/version.txt as already up to date.
+    runtime:
+      started_at: 2026-04-22T18:09:31-04:00
+      last_active_at: 2026-04-22T20:41:20-04:00
+      completed_at: 2026-04-22T20:41:20-04:00
+    blockers: []
+    substeps: []

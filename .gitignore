@@ -1,13 +1,3 @@
 __pycache__/
 *.pyc
 .env
-
-aii/interviews/*
-!aii/interviews/.gitkeep
-
-aii/plans/*
-!aii/plans/.gitkeep
-
-aii/metadata/*
-!aii/metadata/.gitkeep
-aii/metadata/state.yaml
