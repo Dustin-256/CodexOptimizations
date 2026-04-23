@@ -5,7 +5,7 @@ last_task:
   target_path: aii/plans/tool-agnostic-setup-cli.yaml
   state: completed
   resumable: true
-  summary: Completed tool-agnostic setup support with Claude profile and interactive prompts
-  updated_at: 2026-04-22T18:13:24-04:00
+  summary: Completed tool-agnostic setup support with Claude profile, interactive prompts, and first-run bootstrap idempotence
+  updated_at: 2026-04-22T20:41:20-04:00
 
 history: []

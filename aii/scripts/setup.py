@@ -498,6 +498,10 @@ def build_scaffold_files(project_type: str, tool_name: str) -> dict[str, str]:
 def write_file(relative_path: str, content: str, force: bool) -> None:
     path = BASE_DIR / relative_path
     if path.exists() and not force and relative_path not in ALWAYS_OVERWRITE_FILES:
+        existing_content = path.read_text(encoding="utf-8")
+        if existing_content == content:
+            print(f"kept {path} (already up to date)")
+            return
         raise FileExistsError(
             f"{relative_path} already exists. Re-run with --force to overwrite."
         )
