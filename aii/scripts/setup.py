@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import sys
+import textwrap
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -872,19 +873,41 @@ def clear_screen() -> None:
     sys.stdout.flush()
 
 
+def terminal_width(*, fallback: int = 80) -> int:
+    return max(40, shutil.get_terminal_size((fallback, 24)).columns)
+
+
+def wrap_lines(text: str, width: int) -> list[str]:
+    return textwrap.wrap(
+        text,
+        width=width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    ) or [""]
+
+
 def prompt_select(title: str, options: list[tuple[str, str]], *, default_index: int = 0) -> str:
     if not supports_interactive_io():
         raise RuntimeError("interactive prompts require a TTY")
 
     index = max(0, min(default_index, len(options) - 1))
+    width = terminal_width()
+    rule = "-" * min(width, 72)
     while True:
         clear_screen()
-        print(title)
+        for line in wrap_lines(title, width):
+            print(line)
         print("Use arrow keys and Enter.")
         print()
+        print(rule)
         for option_index, (_, label) in enumerate(options):
             marker = ">" if option_index == index else " "
-            print(f"{marker} {label}")
+            available_width = max(1, width - 2)
+            wrapped_label = wrap_lines(label, available_width)
+            print(f"{marker} {wrapped_label[0]}")
+            for continuation in wrapped_label[1:]:
+                print(f"  {continuation}")
+        print(rule)
 
         key = read_key()
         if key in {"up", "k"}:
