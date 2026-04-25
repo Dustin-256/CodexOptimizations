@@ -12,3 +12,4 @@ aii/plans/*
 aii/metadata/*
 !aii/metadata/.gitkeep
 # END aii bootstrap
+aii/models/cache.yaml
