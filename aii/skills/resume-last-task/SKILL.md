@@ -49,6 +49,9 @@ Keep the summary concise and non-technical by default.
 If the target is a plan, derive the summary from the actual plan state:
 - immediate next step = the next actionable top-level step or blocker-recovery substep
 - remaining work = a high-level summary of the remaining pending or blocked top-level steps
+- if `metadata.model_recommendation.display_text` exists, show that exact saved recommendation after the task summary
+- if only legacy `metadata.recommendation.display_text` exists, show that exact saved recommendation instead
+- do not recalculate or replace the saved model recommendation during resume
 
 If the target is an interview:
 - summarize what still needs clarification
@@ -108,6 +111,7 @@ history: []
 - Always re-read the underlying target file before summarizing.
 - Keep the explanation short and low-jargon by default.
 - For plans, summarize the remaining top-level work at a high level rather than dumping raw YAML details.
+- For plans with saved model recommendations, replay the saved display text exactly enough to preserve the original primary/fallback recommendation and switch guidance.
 - Do not resume automatically without confirmation.
 - After confirmation, re-read the artifact one more time before handing off.
 - Treat metadata as the resume source of truth for offering the resume, but let the active conversation override it if the user explicitly redirects before handoff.

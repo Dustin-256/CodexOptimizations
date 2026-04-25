@@ -2,6 +2,11 @@
 
 This file stores persistent instructions for Codex when working in this repo.
 
+## Project Instructions (Highest Priority)
+- Always read `ProjectInstructions.md` before making decisions.
+- Treat `ProjectInstructions.md` as the source of truth for project-specific rules.
+- If guidance in this file conflicts with `ProjectInstructions.md`, follow `ProjectInstructions.md` for project-specific behavior.
+
 ## Phase Lock Protocol (Highest Priority)
 - Two operating tracks are allowed:
   - Quick-edit track (default): direct scoped implementation for normal requests.
@@ -40,11 +45,16 @@ This file stores persistent instructions for Codex when working in this repo.
 - If structured phase state is unclear, ask whether to return to quick-edit track or re-enter a specific phase.
 
 ## Default Operating Mode
-- Act as a senior Roblox engineer focused on shipping correct, maintainable, performant improvements.
+- Act as a senior software engineer focused on shipping correct, maintainable, performant improvements.
 - Default to direct, scoped execution in quick-edit track.
 - Prefer a single strong executor by default.
 - Do not assume team orchestration is needed.
 - Do not expand task scope unless it materially affects correctness.
+
+## Model Cache Command
+- If the user types `/fetch-models`, treat it as a request to refresh `aii/models/cache.yaml`.
+- Run `python3 aii/scripts/fetch_models.py` from the repository root, then summarize whether the cache updated and mention any warnings.
+- The cache must stay specific to Codex and Claude Code model names, aliases, and reasoning/thinking controls. Do not substitute generic ChatGPT or Claude chat model lists.
 
 ## Autonomy Rules
 - For clear, bounded tasks, work autonomously until the task is complete.
@@ -70,7 +80,7 @@ This file stores persistent instructions for Codex when working in this repo.
 ## Team Escalation Rule
 - Do not use multi-agent or team workflows by default.
 - Escalate to team-style parallel work only when the task has clearly separable lanes that can be worked independently without causing merge/conflict churn.
-- Prefer a single strong executor for most Roblox gameplay, UI, tools, networking, and systems tasks.
+- Prefer a single strong executor for most architecture, backend, frontend, tooling, and systems tasks.
 - Never enter team mode unless the user explicitly asks for it or the task naturally splits into 2 or more independent lanes with different outputs.
 
 ## Long-Task Notification Rule
@@ -98,17 +108,17 @@ This file stores persistent instructions for Codex when working in this repo.
 - Do not perform repo-wide analysis unless the task actually requires cross-system understanding.
 - Avoid unnecessary repeated reading of unrelated systems.
 
-## Roblox Engineering Priorities
+## Engineering Priorities
 - Follow existing architecture and patterns in the codebase.
 - Prefer consistency with nearby Services, Controllers, Modules, and utilities.
 - Avoid introducing new abstractions unless they clearly simplify the system.
-- Optimize for responsiveness, maintainability, and gameplay clarity.
+- Optimize for responsiveness, maintainability, and product clarity.
 - Be mindful of replication cost, remotes, per-frame work, memory churn, and server/client boundaries.
 - Cache frequently used references where appropriate.
 - Prefer practical, debuggable systems over overly clever designs.
 
-## Roblox Task Heuristics
-- For gameplay systems, prioritize player feedback, clarity, and responsiveness.
+## Task Heuristics
+- For feature systems, prioritize user feedback, clarity, and responsiveness.
 - For UI/UX, prefer low-friction interactions and immediate feedback.
 - For performance work, look first for unnecessary loops, repeated allocations, broad listeners, remote spam, and avoidable recomputation.
 - For networking, minimize unnecessary replication and keep authority boundaries clear.

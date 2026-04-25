@@ -41,6 +41,10 @@ This file stores persistent instructions for Claude Code when working in this re
 - Use `plan-modifier` only when the approved plan needs to change.
 - Use `resume-last-task` to continue a recent structured workflow from saved metadata.
 
+## Model Cache Command
+- Use `/fetch-models` to refresh `aii/models/cache.yaml` through the project command in `.claude/commands/fetch-models.md`.
+- The cache must stay specific to Codex and Claude Code model names, aliases, and reasoning/thinking controls. Do not substitute generic ChatGPT or Claude chat model lists.
+
 ## Implementation Rules
 - Keep diffs focused, reviewable, and reversible.
 - Prefer deletion over addition when that improves clarity.

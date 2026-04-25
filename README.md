@@ -54,11 +54,13 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 ## What it can do
 
 `bootstrap.py` can:
-- scaffold an `aii/` workspace (`skills/`, `scripts/`, `interviews/`, `plans/`, `metadata/`)
+- scaffold an `aii/` workspace (`skills/`, `scripts/`, `models/`, `interviews/`, `plans/`, `metadata/`)
 - fetch and install canonical instruction files and workflow assets from this repo
 - install a Codex profile or a Claude Code profile from the same setup engine
 - launch a full interactive arrow-key setup wizard when run in a TTY with no flags
 - fetch and install canonical utility scripts (including webhook embed sender) from this repo
+- maintain a shared `aii/models/cache.yaml` for Codex and Claude Code model recommendations
+- refresh that model cache with `/fetch-models`
 - back up an existing `AGENTS.md` to `AGENTS.md.bak` before replacing it
 - back up an existing `CLAUDE.md` to `CLAUDE.md.bak` before replacing it
 - symlink skills into `~/.codex/skills` so Codex can use them directly
@@ -70,6 +72,8 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 Running the bootstrap always creates or updates:
 - `aii/README.md`
 - `aii/scripts/send_webhook_embed.py`
+- `aii/scripts/fetch_models.py`
+- `aii/models/.gitkeep`
 - `aii/interviews/.gitkeep`
 - `aii/plans/.gitkeep`
 - `aii/metadata/.gitkeep`
@@ -89,11 +93,14 @@ Tool-specific outputs:
 - Claude Code:
   - `CLAUDE.md`
   - `.claude/settings.json`
+  - `.claude/commands/fetch-models.md`
   - `.claude/skills/*/SKILL.md`
 
 It also updates `.gitignore` to keep generated workflow artifacts untracked.
 
 The installed `aii/scripts/send_webhook_embed.py` script provides a shared, embed-first webhook notification path for progress, blocked, success, failure, and test events.
+
+The installed `aii/scripts/fetch_models.py` script refreshes `aii/models/cache.yaml` from current official Codex/OpenAI and Claude Code/Anthropic sources. The cache is intentionally tool-specific; it should not be replaced with generic ChatGPT or Claude chat model lists.
 
 ## Skill roles
 
@@ -141,6 +148,7 @@ Typical workflow:
 1. Run `python3 bootstrap.py` in a target repository.
 2. Start using the installed skills (for example: requirements interview -> plan generation -> plan execution).
 3. Keep `aii/interviews/`, `aii/plans/`, and `aii/metadata/` as the project memory for ongoing work.
+4. Run `/fetch-models` when model recommendations need the latest Codex and Claude Code model cache.
 
 ### Options
 
@@ -208,6 +216,18 @@ python3 aii/scripts/send_webhook_embed.py \
   --runtime "6m 12s"
 ```
 
+### Model Cache Refresh
+
+Use `/fetch-models` to refresh `aii/models/cache.yaml`.
+
+For Codex, the project instructions treat `/fetch-models` as a request to run:
+
+```bash
+python3 aii/scripts/fetch_models.py
+```
+
+For Claude Code installs, the bootstrap writes `.claude/commands/fetch-models.md`, which exposes `/fetch-models` as a project slash command.
+
 ## Uninstall behavior
 
 `--uninstall` does the following:
@@ -227,7 +247,9 @@ python3 aii/scripts/send_webhook_embed.py \
 ├── todo.md
 └── aii/
     ├── README.md
+    ├── models/
     ├── scripts/
+    │   ├── fetch_models.py
     │   └── send_webhook_embed.py
     ├── interviews/
     ├── plans/

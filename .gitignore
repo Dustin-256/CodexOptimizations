@@ -1,3 +1,14 @@
 __pycache__/
 *.pyc
 .env
+
+# BEGIN aii bootstrap
+aii/interviews/*
+!aii/interviews/.gitkeep
+
+aii/plans/*
+!aii/plans/.gitkeep
+
+aii/metadata/*
+!aii/metadata/.gitkeep
+# END aii bootstrap

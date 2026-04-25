@@ -74,6 +74,10 @@ Use:
 - blocker-recovery `substeps`
 - runtime timestamps
 
+If the plan has `metadata.model_recommendation.display_text`, display that saved recommendation when execution starts or resumes. If only legacy `metadata.recommendation.display_text` exists, display that saved recommendation instead.
+
+Do not recalculate model recommendations during execution. The planner recommendation is part of the approved plan metadata and should be replayed as saved.
+
 If the plan is already `completed`, report that clearly and stop.
 
 If the current step is `blocked` and recovery substeps already exist, continue automatically with those recovery substeps.
@@ -236,6 +240,24 @@ metadata:
   created_at: <ISO-8601 timestamp>
   last_updated: <ISO-8601 timestamp>
   readiness_verdict: <copied from interview>
+  model_recommendation:
+    cache_path: aii/models/cache.yaml
+    cache_fetched_at: <ISO-8601 timestamp | null>
+    current_tool: Codex | Claude Code | unknown
+    switch_recommendation: stay_on_current_tool | switch_to_codex | switch_to_claude_code | unknown
+    primary:
+      tool: Codex | Claude Code
+      model: <exact model name or Claude Code alias>
+      reasoning: <Codex reasoning level, when tool is Codex>
+      thinking: <Claude Code thinking level, when tool is Claude Code>
+      rationale: <why this is the best fit>
+    fallback:
+      tool: Codex | Claude Code
+      model: <exact model name or Claude Code alias>
+      reasoning: <Codex reasoning level, when tool is Codex>
+      thinking: <Claude Code thinking level, when tool is Claude Code>
+      rationale: <why this is the cheaper fallback>
+    display_text: <exact recommendation text to replay during resume/execution>
 
 steps:
   - id: step-1
@@ -285,4 +307,5 @@ steps:
 - Reserve `substeps` for blocker-recovery only.
 - Continue recovery substeps automatically on resume if they already exist.
 - Use human-readable time strings when reporting runtime to the user or to webhooks.
+- When present, show `metadata.model_recommendation.display_text` on execution start/resume and never recalculate it in plan-executor.
 - Keep `aii/metadata/state.yaml` updated so a future `$resume-last-task` flow can recover the current execution state cleanly.
