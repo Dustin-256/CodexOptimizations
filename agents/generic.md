@@ -51,9 +51,10 @@ This file stores persistent instructions for Codex when working in this repo.
 - Do not assume team orchestration is needed.
 - Do not expand task scope unless it materially affects correctness.
 
-## Model Cache Command
-- If the user types `/fetch-models`, treat it as a request to refresh `aii/models/cache.yaml`.
-- Run `python3 aii/scripts/fetch_models.py` from the repository root, then summarize whether the cache updated and mention any warnings.
+## Model Cache Skill
+- Use the `fetch-models` skill to refresh `aii/models/cache.yaml`.
+- The skill runs `python3 aii/scripts/fetch_models.py` from the repository root, then summarizes whether the cache updated and mentions any warnings.
+- Codex should use the `fetch-models` skill rather than a slash command for this workflow.
 - The cache must stay specific to Codex and Claude Code model names, aliases, and reasoning/thinking controls. Do not substitute generic ChatGPT or Claude chat model lists.
 
 ## Autonomy Rules

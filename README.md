@@ -60,7 +60,7 @@ Result: faster setup, less process drift, and easier handoff between sessions.
 - launch a full interactive arrow-key setup wizard when run in a TTY with no flags
 - fetch and install canonical utility scripts (including webhook embed sender) from this repo
 - maintain a shared `aii/models/cache.yaml` for Codex and Claude Code model recommendations
-- refresh that model cache with `/fetch-models`
+- refresh that model cache with the Codex `fetch-models` skill or the Claude Code `/fetch-models` project command
 - back up an existing `AGENTS.md` to `AGENTS.md.bak` before replacing it
 - back up an existing `CLAUDE.md` to `CLAUDE.md.bak` before replacing it
 - symlink skills into `~/.codex/skills` so Codex can use them directly
@@ -81,6 +81,7 @@ Running the bootstrap always creates or updates:
 - `aii/skills/*/SKILL.md` for:
   - `code-review`
   - `deep-interview`
+  - `fetch-models`
   - `planner`
   - `plan-executor`
   - `plan-modifier`
@@ -107,6 +108,7 @@ The installed `aii/scripts/fetch_models.py` script refreshes `aii/models/cache.y
 Installed skills are designed to work as a pipeline:
 - `code-review`: reviews code-only changes against repo instructions and coding standards, then proposes or applies fixes.
 - `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
+- `fetch-models`: refreshes the shared Codex and Claude Code model cache under `aii/models/cache.yaml`.
 - `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
 - `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
 - `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
@@ -148,7 +150,7 @@ Typical workflow:
 1. Run `python3 bootstrap.py` in a target repository.
 2. Start using the installed skills (for example: requirements interview -> plan generation -> plan execution).
 3. Keep `aii/interviews/`, `aii/plans/`, and `aii/metadata/` as the project memory for ongoing work.
-4. Run `/fetch-models` when model recommendations need the latest Codex and Claude Code model cache.
+4. Run the Codex `fetch-models` skill or Claude Code `/fetch-models` when model recommendations need the latest Codex and Claude Code model cache.
 
 ### Options
 
@@ -218,9 +220,9 @@ python3 aii/scripts/send_webhook_embed.py \
 
 ### Model Cache Refresh
 
-Use `/fetch-models` to refresh `aii/models/cache.yaml`.
+Use the Codex `fetch-models` skill or Claude Code `/fetch-models` to refresh `aii/models/cache.yaml`.
 
-For Codex, the project instructions treat `/fetch-models` as a request to run:
+For Codex installs, bootstrap symlinks `fetch-models` into `~/.codex/skills` unless `--no-install-skills` is used. The skill runs:
 
 ```bash
 python3 aii/scripts/fetch_models.py

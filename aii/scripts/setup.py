@@ -34,6 +34,7 @@ RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main
 SKILLS = (
     "code-review",
     "deep-interview",
+    "fetch-models",
     "planner",
     "plan-executor",
     "plan-modifier",
@@ -42,6 +43,7 @@ SKILLS = (
 SCRIPTS = (
     "send_webhook_embed.py",
     "bump_version.py",
+    "fetch_models.py",
 )
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
 ENV_PATH = BASE_DIR / ".env"
@@ -67,6 +69,7 @@ AII_PATH = BASE_DIR / "aii"
 CLAUDE_DIR = BASE_DIR / ".claude"
 CLAUDE_SETTINGS_PATH = CLAUDE_DIR / "settings.json"
 CLAUDE_SKILLS_PATH = CLAUDE_DIR / "skills"
+CLAUDE_COMMANDS_PATH = CLAUDE_DIR / "commands"
 GITIGNORE_PATH = BASE_DIR / ".gitignore"
 GIT_HOOKS_PATH = BASE_DIR / ".git" / "hooks"
 PRE_PUSH_HOOK_PATH = GIT_HOOKS_PATH / "pre-push"
@@ -103,6 +106,20 @@ CLAUDE_SETTINGS_CONTENT = """{
 }
 """
 
+FETCH_MODELS_COMMAND_CONTENT = """---
+allowed-tools: Bash(python3 aii/scripts/fetch_models.py)
+description: Refresh the shared Codex and Claude Code model cache
+---
+
+Refresh `aii/models/cache.yaml` with current tool-specific model information for Codex and Claude Code.
+
+Run:
+
+!`python3 aii/scripts/fetch_models.py`
+
+After it completes, summarize whether the cache updated cleanly and mention any warnings. Do not substitute generic ChatGPT or Claude chat model lists for Codex or Claude Code model data.
+"""
+
 STATIC_FILES = {
     "aii/README.md": """# aii
 
@@ -116,13 +133,15 @@ It keeps planning and execution artifacts in one predictable place so work can b
 
 - provide a home for reusable skill definitions in `skills/`
 - provide shared automation scripts in `scripts/`
+- provide a tool-specific model cache in `models/`
 - preserve requirements in `interviews/`
 - track execution plans in `plans/`
 - persist resumable task state in `metadata/`
 
 ## Layout
-- `skills/`: opt-in skills such as `code-review`, `deep-interview`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
+- `skills/`: opt-in skills such as `code-review`, `deep-interview`, `fetch-models`, `planner`, `plan-executor`, `plan-modifier`, and `resume-last-task`
 - `scripts/`: reusable helpers such as `send_webhook_embed.py` for standardized Discord embeds
+- `models/`: shared Codex and Claude Code model cache used by planner recommendations
 - `interviews/`: saved markdown requirement handoff documents
 - `plans/`: machine-readable YAML execution plans
 - `metadata/`: shared resumable task state for workflows such as `$resume-last-task`
@@ -131,12 +150,15 @@ It keeps planning and execution artifacts in one predictable place so work can b
 
 - `code-review`: reviews code-only changes against repo instructions and coding standards, then proposes or applies fixes.
 - `deep-interview`: captures requirements, constraints, assumptions, and ambiguity into a structured interview artifact.
+- `fetch-models`: refreshes the shared Codex and Claude Code model cache under `models/cache.yaml`.
 - `planner`: turns the interview artifact into an executable YAML plan under `aii/plans/`.
 - `plan-executor`: executes or resumes a plan step-by-step while persisting progress and blockers.
 - `plan-modifier`: updates an existing plan in place when scope changes or blockers require plan revisions.
 - `resume-last-task`: restores the most recent resumable task context from `aii/metadata/` and continues work.
 
 Typical flow: interview -> plan -> execute -> modify (if needed) -> resume later.
+
+Use the `fetch-models` skill in Codex, or `/fetch-models` in Claude Code, to refresh `models/cache.yaml` from current official Codex/OpenAI and Claude Code/Anthropic sources. The model cache is tool-specific and must not be replaced with generic ChatGPT or Claude chat model lists.
 
 ## How to use it
 
@@ -163,6 +185,7 @@ Use it to define constraints, conventions, workflows, architecture rules, and an
     "aii/interviews/.gitkeep": "",
     "aii/plans/.gitkeep": "",
     "aii/metadata/.gitkeep": "",
+    "aii/models/.gitkeep": "",
     "aii/metadata/state.yaml": """last_task: null
 
 history: []
@@ -196,7 +219,10 @@ TOOL_PROFILES = {
         instruction_target="CLAUDE.md",
         instruction_template=CLAUDE_TEMPLATE_PATH,
         project_skill_dir=".claude/skills",
-        extra_files=((".claude/settings.json", CLAUDE_SETTINGS_CONTENT),),
+        extra_files=(
+            (".claude/settings.json", CLAUDE_SETTINGS_CONTENT),
+            (".claude/commands/fetch-models.md", FETCH_MODELS_COMMAND_CONTENT),
+        ),
     ),
 }
 
@@ -737,6 +763,14 @@ def uninstall_claude_files() -> None:
         else:
             print("left .claude/settings.json in place because it is not the managed template")
 
+    fetch_models_command = CLAUDE_COMMANDS_PATH / "fetch-models.md"
+    if fetch_models_command.exists():
+        if fetch_models_command.read_text(encoding="utf-8") == FETCH_MODELS_COMMAND_CONTENT:
+            fetch_models_command.unlink()
+            print("removed .claude/commands/fetch-models.md")
+        else:
+            print("left .claude/commands/fetch-models.md in place because it is not the managed template")
+
     for skill in SKILLS:
         skill_dir = CLAUDE_SKILLS_PATH / skill
         if skill_dir.exists():
@@ -746,6 +780,10 @@ def uninstall_claude_files() -> None:
     if CLAUDE_SKILLS_PATH.exists() and not any(CLAUDE_SKILLS_PATH.iterdir()):
         CLAUDE_SKILLS_PATH.rmdir()
         print("removed .claude/skills")
+
+    if CLAUDE_COMMANDS_PATH.exists() and not any(CLAUDE_COMMANDS_PATH.iterdir()):
+        CLAUDE_COMMANDS_PATH.rmdir()
+        print("removed .claude/commands")
 
     if CLAUDE_DIR.exists() and not any(CLAUDE_DIR.iterdir()):
         CLAUDE_DIR.rmdir()

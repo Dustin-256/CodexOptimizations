@@ -73,7 +73,7 @@ The cache must be specific to Codex and Claude Code. Do not substitute generic C
 
 If the cache is missing or stale:
 - say that model cache data is missing or stale
-- recommend running `/fetch-models`
+- recommend running the Codex `fetch-models` skill or the Claude Code `/fetch-models` project command, depending on the active tool
 - use conservative tier-based guidance without claiming the named models are latest
 
 If the cache is present and fresh enough, use it as the source of truth for available tool-specific model names, aliases, and reasoning/thinking options.
@@ -228,7 +228,7 @@ steps:
 - Keep the plan machine-readable first; optimize for reliable future consumption by `plan-runner` or `plan-modifier`.
 - Preserve important caveats from the interview in either step descriptions or a short assumptions summary before approval.
 - Read `aii/models/cache.yaml` before naming specific model recommendations.
-- If `aii/models/cache.yaml` is missing or stale, recommend `/fetch-models` and avoid claiming stale model names are current.
+- If `aii/models/cache.yaml` is missing or stale, recommend the Codex `fetch-models` skill or the Claude Code `/fetch-models` project command and avoid claiming stale model names are current.
 - Model recommendations must be specific to Codex and Claude Code, not generic ChatGPT or Claude chat models.
 - Always save `metadata.model_recommendation.display_text` so resume paths can replay the exact same recommendation without recalculating it.
 - Use `runtime.auto_notify_after_seconds: 300` by default unless the user explicitly wants a different threshold.
