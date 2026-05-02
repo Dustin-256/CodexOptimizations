@@ -47,8 +47,13 @@ SCRIPTS = (
 )
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
 ENV_PATH = BASE_DIR / ".env"
+ENV_KEY_NOTIFICATION_PROVIDER = "codex_notification_provider"
 ENV_KEY_WEBHOOK = "codex_webhook"
+ENV_KEY_TELEGRAM_BOT_TOKEN = "codex_telegram_bot_token"
+ENV_KEY_TELEGRAM_CHAT_ID = "codex_telegram_chat_id"
 ENV_KEY_IGNORE_WEBHOOK_MISSING = "codex_ignore_webhook_missing"
+DEFAULT_NOTIFICATION_PROVIDER = "discord"
+TELEGRAM_API_BASE = "https://api.telegram.org"
 AGENTS_PATH = BASE_DIR / "AGENTS.md"
 AGENTS_BAK_PATH = BASE_DIR / "AGENTS.md.bak"
 CLAUDE_PATH = BASE_DIR / "CLAUDE.md"
@@ -268,20 +273,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--webhook",
         metavar="URL",
-        help="Persist Discord webhook URL to .env as codex_webhook for embed webhook reports.",
+        help="Persist Discord webhook URL to .env as codex_webhook.",
+    )
+    parser.add_argument(
+        "--notification-provider",
+        choices=("discord", "telegram"),
+        help="Persist notification provider to .env as codex_notification_provider.",
+    )
+    parser.add_argument(
+        "--telegram-bot-token",
+        help="Persist Telegram bot token to .env as codex_telegram_bot_token.",
+    )
+    parser.add_argument(
+        "--telegram-chat-id",
+        help="Persist Telegram chat id to .env as codex_telegram_chat_id.",
     )
     parser.add_argument(
         "--always-skip-missing-webhook",
         action="store_true",
         help=(
             "Persist codex_ignore_webhook_missing=true in .env so runs do not halt when "
-            "codex_webhook is missing."
+            "notification config is missing."
         ),
     )
     parser.add_argument(
         "--test-webhook-embed",
         action="store_true",
-        help="Send a test embed webhook report and exit.",
+        help="Send a test notification report and exit.",
     )
     parser.add_argument(
         "--interactive",
@@ -356,6 +374,12 @@ def truncate_discord_message(message: str, limit: int = 2000) -> str:
     return message[: limit - 3] + "..."
 
 
+def truncate_telegram_message(message: str) -> str:
+    if len(message) <= 4096:
+        return message
+    return message[:4093] + "..."
+
+
 def _build_webhook_embed(action: str, status: str, details: str) -> dict[str, object]:
     color_by_status = {
         "succeeded": 0x2ECC71,
@@ -380,12 +404,22 @@ def _build_webhook_embed(action: str, status: str, details: str) -> dict[str, ob
     }
 
 
-def send_webhook_report(
-    webhook_url: str | None, *, action: str, status: str, details: str
-) -> None:
-    if not webhook_url:
-        return
+def _build_telegram_message(action: str, status: str, details: str) -> str:
+    normalized = status if status in {"succeeded", "failed", "progress"} else "succeeded"
+    text = "\n".join(
+        (
+            f"bootstrap.py {action} {normalized}",
+            "Bootstrap execution report",
+            f"Repository: {BASE_DIR}",
+            f"Details: {details}",
+        )
+    )
+    return truncate_telegram_message(text)
 
+
+def send_discord_webhook_report(
+    webhook_url: str, *, action: str, status: str, details: str
+) -> None:
     payload = json.dumps(
         {
             "embeds": [_build_webhook_embed(action=action, status=status, details=details)],
@@ -402,15 +436,90 @@ def send_webhook_report(
         method="POST",
     )
 
+    with urlopen(request, timeout=30):
+        pass
+
+
+def send_telegram_report(
+    bot_token: str, chat_id: str, *, action: str, status: str, details: str
+) -> None:
+    payload = json.dumps(
+        {
+            "chat_id": chat_id,
+            "text": _build_telegram_message(
+                action=action,
+                status=status,
+                details=details,
+            ),
+        }
+    ).encode("utf-8")
+    request = Request(
+        f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "codex-optimizations-bootstrap",
+        },
+        method="POST",
+    )
+
+    with urlopen(request, timeout=30):
+        pass
+
+
+def send_webhook_report(
+    *,
+    provider: str,
+    webhook_url: str | None,
+    telegram_bot_token: str | None,
+    telegram_chat_id: str | None,
+    action: str,
+    status: str,
+    details: str,
+) -> None:
     try:
-        with urlopen(request, timeout=30):
-            pass
+        if provider == "discord" and webhook_url:
+            send_discord_webhook_report(
+                webhook_url,
+                action=action,
+                status=status,
+                details=details,
+            )
+        elif provider == "telegram" and telegram_bot_token and telegram_chat_id:
+            send_telegram_report(
+                telegram_bot_token,
+                telegram_chat_id,
+                action=action,
+                status=status,
+                details=details,
+            )
     except URLError as exc:
-        print(f"warning: failed to send webhook report: {exc}")
+        print(f"warning: failed to send {provider} notification: {exc}")
 
 
 def load_codex_webhook(env_path: Path = ENV_PATH) -> str | None:
     return load_env_value(ENV_KEY_WEBHOOK, env_path=env_path)
+
+
+def load_codex_notification_provider(env_path: Path = ENV_PATH) -> str:
+    value = load_env_value(ENV_KEY_NOTIFICATION_PROVIDER, env_path=env_path)
+    if not value:
+        return DEFAULT_NOTIFICATION_PROVIDER
+    normalized = value.strip().lower()
+    if normalized not in {"discord", "telegram"}:
+        raise ValueError(
+            f"invalid {ENV_KEY_NOTIFICATION_PROVIDER}={value!r}; "
+            "expected 'discord' or 'telegram'"
+        )
+    return normalized
+
+
+def load_codex_telegram_bot_token(env_path: Path = ENV_PATH) -> str | None:
+    return load_env_value(ENV_KEY_TELEGRAM_BOT_TOKEN, env_path=env_path)
+
+
+def load_codex_telegram_chat_id(env_path: Path = ENV_PATH) -> str | None:
+    return load_env_value(ENV_KEY_TELEGRAM_CHAT_ID, env_path=env_path)
 
 
 def load_codex_ignore_webhook_missing(env_path: Path = ENV_PATH) -> bool:
@@ -439,7 +548,26 @@ def load_env_value(key: str, env_path: Path = ENV_PATH) -> str | None:
 
 def save_codex_webhook(webhook_url: str, env_path: Path = ENV_PATH) -> None:
     save_env_value(ENV_KEY_WEBHOOK, webhook_url, env_path=env_path)
-    print("updated .env with codex_webhook for embed webhook reports")
+    print("updated .env with codex_webhook")
+
+
+def save_codex_notification_provider(
+    provider: str, env_path: Path = ENV_PATH
+) -> None:
+    save_env_value(ENV_KEY_NOTIFICATION_PROVIDER, provider, env_path=env_path)
+    print(f"updated .env with codex_notification_provider={provider}")
+
+
+def save_codex_telegram_bot_token(
+    bot_token: str, env_path: Path = ENV_PATH
+) -> None:
+    save_env_value(ENV_KEY_TELEGRAM_BOT_TOKEN, bot_token, env_path=env_path)
+    print("updated .env with codex_telegram_bot_token")
+
+
+def save_codex_telegram_chat_id(chat_id: str, env_path: Path = ENV_PATH) -> None:
+    save_env_value(ENV_KEY_TELEGRAM_CHAT_ID, chat_id, env_path=env_path)
+    print("updated .env with codex_telegram_chat_id")
 
 
 def save_codex_ignore_webhook_missing(
@@ -827,32 +955,53 @@ def uninstall() -> None:
     update_gitignore_for_uninstall()
 
 
-def prompt_for_webhook_if_missing(
-    webhook_url: str | None, ignore_missing_webhook: bool
-) -> str | None:
-    if webhook_url or ignore_missing_webhook:
-        return webhook_url
+def prompt_for_notification_if_missing(
+    provider: str,
+    webhook_url: str | None,
+    telegram_bot_token: str | None,
+    telegram_chat_id: str | None,
+    ignore_missing_webhook: bool,
+) -> tuple[str | None, str | None, str | None]:
+    provider_configured = (
+        bool(webhook_url)
+        if provider == "discord"
+        else bool(telegram_bot_token and telegram_chat_id)
+    )
+    if provider_configured or ignore_missing_webhook:
+        return webhook_url, telegram_bot_token, telegram_chat_id
 
     if not sys.stdin.isatty():
         print(
-            "warning: codex_webhook is missing; continuing without webhook reports. "
+            f"warning: {provider} notification config is missing; "
+            "continuing without notification reports. "
             "Use --always-skip-missing-webhook to suppress this warning."
         )
-        return None
+        return webhook_url, telegram_bot_token, telegram_chat_id
 
-    print("codex_webhook is missing.")
-    answer = input("Would you like to enter one now? [y/N]: ").strip().lower()
+    print(f"{provider} notification config is missing.")
+    answer = input("Would you like to enter it now? [y/N]: ").strip().lower()
     if answer not in {"y", "yes"}:
-        print("continuing without webhook reports")
-        return None
+        print("continuing without notification reports")
+        return webhook_url, telegram_bot_token, telegram_chat_id
 
-    entered = input("Paste Discord webhook URL: ").strip()
-    if not entered:
-        print("no webhook URL provided; continuing without webhook reports")
-        return None
+    if provider == "discord":
+        entered = input("Paste Discord webhook URL: ").strip()
+        if not entered:
+            print("no webhook URL provided; continuing without notification reports")
+            return webhook_url, telegram_bot_token, telegram_chat_id
 
-    save_codex_webhook(entered)
-    return entered
+        save_codex_webhook(entered)
+        return entered, telegram_bot_token, telegram_chat_id
+
+    entered_token = input("Paste Telegram bot token: ").strip()
+    entered_chat_id = input("Paste Telegram chat id: ").strip()
+    if not entered_token or not entered_chat_id:
+        print("telegram config incomplete; continuing without notification reports")
+        return webhook_url, telegram_bot_token, telegram_chat_id
+
+    save_codex_telegram_bot_token(entered_token)
+    save_codex_telegram_chat_id(entered_chat_id)
+    return webhook_url, entered_token, entered_chat_id
 
 
 def supports_interactive_io() -> bool:
@@ -978,13 +1127,18 @@ def prompt_input(prompt: str, *, default: str | None = None) -> str:
     return default or ""
 
 
-def build_interactive_config(existing_webhook: str | None) -> argparse.Namespace:
+def build_interactive_config(
+    existing_provider: str,
+    existing_webhook: str | None,
+    existing_telegram_bot_token: str | None,
+    existing_telegram_chat_id: str | None,
+) -> argparse.Namespace:
     action = prompt_select(
         "Select a setup action",
         [
             ("install", "Install or update scaffold"),
             ("uninstall", "Uninstall scaffold"),
-            ("test-webhook", "Send webhook test embed"),
+            ("test-webhook", "Send notification test"),
         ],
     )
 
@@ -994,6 +1148,9 @@ def build_interactive_config(existing_webhook: str | None) -> argparse.Namespace
     install_pre_push_hook = False
     no_install_skills = False
     webhook = None
+    notification_provider = existing_provider
+    telegram_bot_token = None
+    telegram_chat_id = None
     always_skip_missing_webhook = False
 
     if action == "install":
@@ -1019,15 +1176,27 @@ def build_interactive_config(existing_webhook: str | None) -> argparse.Namespace
             )
 
     webhook_mode = prompt_select(
-        "Webhook configuration",
+        "Notification configuration",
         [
-            ("keep", "Keep current webhook settings"),
-            ("set", "Set or update webhook URL now"),
-            ("skip", "Always skip missing webhook prompts"),
+            ("keep", "Keep current notification settings"),
+            ("discord", "Use Discord webhook"),
+            ("telegram", "Use Telegram bot"),
+            ("skip", "Always skip missing notification prompts"),
         ],
     )
-    if webhook_mode == "set":
+    if webhook_mode == "discord":
+        notification_provider = "discord"
         webhook = prompt_input("Enter Discord webhook URL", default=existing_webhook)
+    elif webhook_mode == "telegram":
+        notification_provider = "telegram"
+        telegram_bot_token = prompt_input(
+            "Enter Telegram bot token",
+            default=existing_telegram_bot_token,
+        )
+        telegram_chat_id = prompt_input(
+            "Enter Telegram chat id",
+            default=existing_telegram_chat_id,
+        )
     elif webhook_mode == "skip":
         always_skip_missing_webhook = True
 
@@ -1046,10 +1215,10 @@ def build_interactive_config(existing_webhook: str | None) -> argparse.Namespace
                 f"Install Codex symlinks: {'no' if no_install_skills else 'yes'}"
             )
     summary_lines.append(
-        "Webhook mode: "
+        "Notification mode: "
         + (
-            "set/update URL"
-            if webhook_mode == "set"
+            f"use {notification_provider}"
+            if webhook_mode in {"discord", "telegram"}
             else "always skip missing prompts"
             if webhook_mode == "skip"
             else "leave current settings"
@@ -1073,7 +1242,10 @@ def build_interactive_config(existing_webhook: str | None) -> argparse.Namespace
         force=force,
         uninstall=action == "uninstall",
         no_install_skills=no_install_skills,
+        notification_provider=notification_provider,
         webhook=webhook,
+        telegram_bot_token=telegram_bot_token,
+        telegram_chat_id=telegram_chat_id,
         always_skip_missing_webhook=always_skip_missing_webhook,
         test_webhook_embed=action == "test-webhook",
         interactive=True,
@@ -1089,31 +1261,49 @@ def should_run_interactive(args: argparse.Namespace, raw_args: list[str]) -> boo
     return supports_interactive_io() and not raw_args
 
 
-def resolve_interactive_webhook(
-    webhook_url: str | None, ignore_missing_webhook: bool
-) -> tuple[str | None, bool]:
-    if webhook_url or ignore_missing_webhook:
-        return webhook_url, ignore_missing_webhook
+def resolve_interactive_notification(
+    provider: str,
+    webhook_url: str | None,
+    telegram_bot_token: str | None,
+    telegram_chat_id: str | None,
+    ignore_missing_webhook: bool,
+) -> tuple[str | None, str | None, str | None, bool]:
+    provider_configured = (
+        bool(webhook_url)
+        if provider == "discord"
+        else bool(telegram_bot_token and telegram_chat_id)
+    )
+    if provider_configured or ignore_missing_webhook:
+        return webhook_url, telegram_bot_token, telegram_chat_id, ignore_missing_webhook
 
     choice = prompt_select(
-        "No codex_webhook is configured",
+        f"No {provider} notification config is set",
         [
-            ("continue", "Continue without webhook reports for this run"),
-            ("set", "Set a webhook URL now"),
-            ("skip", "Always skip missing webhook prompts"),
+            ("continue", "Continue without notification reports for this run"),
+            ("set", "Set notification config now"),
+            ("skip", "Always skip missing notification prompts"),
         ],
     )
     if choice == "set":
-        entered = prompt_input("Enter Discord webhook URL")
-        if entered:
-            save_codex_webhook(entered)
-            return entered, ignore_missing_webhook
-        return None, ignore_missing_webhook
+        if provider == "discord":
+            entered = prompt_input("Enter Discord webhook URL")
+            if entered:
+                save_codex_webhook(entered)
+                return entered, telegram_bot_token, telegram_chat_id, ignore_missing_webhook
+            return webhook_url, telegram_bot_token, telegram_chat_id, ignore_missing_webhook
+
+        entered_token = prompt_input("Enter Telegram bot token")
+        entered_chat_id = prompt_input("Enter Telegram chat id")
+        if entered_token and entered_chat_id:
+            save_codex_telegram_bot_token(entered_token)
+            save_codex_telegram_chat_id(entered_chat_id)
+            return webhook_url, entered_token, entered_chat_id, ignore_missing_webhook
+        return webhook_url, telegram_bot_token, telegram_chat_id, ignore_missing_webhook
     if choice == "skip":
         save_codex_ignore_webhook_missing(True)
-        return None, True
-    print("continuing without webhook reports")
-    return None, ignore_missing_webhook
+        return webhook_url, telegram_bot_token, telegram_chat_id, True
+    print("continuing without notification reports")
+    return webhook_url, telegram_bot_token, telegram_chat_id, ignore_missing_webhook
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1121,45 +1311,87 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_args(raw_args)
     if should_run_interactive(args, raw_args):
         try:
-            args = build_interactive_config(load_codex_webhook())
+            args = build_interactive_config(
+                load_codex_notification_provider(),
+                load_codex_webhook(),
+                load_codex_telegram_bot_token(),
+                load_codex_telegram_chat_id(),
+            )
         except KeyboardInterrupt:
             print("\nsetup cancelled")
             return
 
     resolved_project_type = detect_project_type(args.project_type)
+    if args.notification_provider:
+        save_codex_notification_provider(args.notification_provider)
     if args.webhook:
         save_codex_webhook(args.webhook)
+    if args.telegram_bot_token:
+        save_codex_telegram_bot_token(args.telegram_bot_token)
+    if args.telegram_chat_id:
+        save_codex_telegram_chat_id(args.telegram_chat_id)
     if args.always_skip_missing_webhook:
         save_codex_ignore_webhook_missing(True)
 
+    provider = args.notification_provider or load_codex_notification_provider()
     webhook_url = args.webhook or load_codex_webhook()
+    telegram_bot_token = args.telegram_bot_token or load_codex_telegram_bot_token()
+    telegram_chat_id = args.telegram_chat_id or load_codex_telegram_chat_id()
     ignore_missing_webhook = load_codex_ignore_webhook_missing()
     if getattr(args, "interactive", False):
-        webhook_url, ignore_missing_webhook = resolve_interactive_webhook(
-            webhook_url, ignore_missing_webhook
+        (
+            webhook_url,
+            telegram_bot_token,
+            telegram_chat_id,
+            ignore_missing_webhook,
+        ) = resolve_interactive_notification(
+            provider,
+            webhook_url,
+            telegram_bot_token,
+            telegram_chat_id,
+            ignore_missing_webhook,
         )
     else:
-        webhook_url = prompt_for_webhook_if_missing(
-            webhook_url, ignore_missing_webhook
+        (
+            webhook_url,
+            telegram_bot_token,
+            telegram_chat_id,
+        ) = prompt_for_notification_if_missing(
+            provider,
+            webhook_url,
+            telegram_bot_token,
+            telegram_chat_id,
+            ignore_missing_webhook,
         )
 
     if args.test_webhook_embed:
-        if not webhook_url:
-            print("webhook missing; no test embed sent")
+        provider_configured = (
+            bool(webhook_url)
+            if provider == "discord"
+            else bool(telegram_bot_token and telegram_chat_id)
+        )
+        if not provider_configured:
+            print("notification config missing; no test message sent")
             return
         send_webhook_report(
-            webhook_url,
+            provider=provider,
+            webhook_url=webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             action="test",
             status="progress",
-            details="embed delivery test from bootstrap.py",
+            details="notification delivery test from bootstrap.py",
         )
-        print("sent webhook embed test")
+        print(f"sent {provider} notification test")
         return
 
     action = "uninstall" if args.uninstall else "install"
     try:
         send_webhook_report(
-            webhook_url,
+            provider=provider,
+            webhook_url=webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             action=action,
             status="progress",
             details="starting scaffold operation",
@@ -1177,20 +1409,29 @@ def main(argv: list[str] | None = None) -> None:
                 install_pre_push_hook_enabled=args.install_pre_push_hook,
             )
         send_webhook_report(
-            webhook_url,
+            provider=provider,
+            webhook_url=webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             action=action,
             status="progress",
             details="scaffold operation reached finalization stage",
         )
         send_webhook_report(
-            webhook_url,
+            provider=provider,
+            webhook_url=webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             action=action,
             status="succeeded",
             details="scaffold operation completed successfully",
         )
     except Exception as exc:
         send_webhook_report(
-            webhook_url,
+            provider=provider,
+            webhook_url=webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             action=action,
             status="failed",
             details=f"{type(exc).__name__}: {exc}",

@@ -99,7 +99,7 @@ Tool-specific outputs:
 
 It also updates `.gitignore` to keep generated workflow artifacts untracked.
 
-The installed `aii/scripts/send_webhook_embed.py` script provides a shared, embed-first webhook notification path for progress, blocked, success, failure, and test events.
+The installed `aii/scripts/send_webhook_embed.py` script provides a shared notification path for progress, blocked, success, failure, and test events. It supports Discord webhooks and Telegram bot messages.
 
 The installed `aii/scripts/fetch_models.py` script refreshes `aii/models/cache.yaml` from current official Codex/OpenAI and Claude Code/Anthropic sources. The cache is intentionally tool-specific; it should not be replaced with generic ChatGPT or Claude chat model lists.
 
@@ -163,11 +163,17 @@ Typical workflow:
 - `--uninstall`:
   remove scaffolded content and restore `AGENTS.md` or `CLAUDE.md` from backups when available
 - `--webhook URL`:
-  save `codex_webhook=URL` to `.env` for embed-based webhook reports (including bootstrap run reports)
+  save `codex_webhook=URL` to `.env` for Discord webhook reports
+- `--notification-provider discord|telegram`:
+  save `codex_notification_provider=...` to `.env`; defaults to `discord`
+- `--telegram-bot-token TOKEN`:
+  save `codex_telegram_bot_token=TOKEN` to `.env` for Telegram notifications
+- `--telegram-chat-id CHAT_ID`:
+  save `codex_telegram_chat_id=CHAT_ID` to `.env` for Telegram notifications
 - `--always-skip-missing-webhook`:
-  save `codex_ignore_webhook_missing=true` to `.env` so runs do not halt when `codex_webhook` is missing
+  save `codex_ignore_webhook_missing=true` to `.env` so runs do not halt when notification config is missing
 - `--test-webhook-embed`:
-  send a test embed using current webhook settings, then exit
+  send a test notification using current notification settings, then exit
 - `--interactive`:
   force the full interactive arrow-key wizard
 - `--no-interactive`:
@@ -197,10 +203,16 @@ python3 bootstrap.py --uninstall
 # Save webhook to .env and report run status using embeds
 python3 bootstrap.py --webhook https://discord.com/api/webhooks/...
 
+# Save Telegram notification config and report run status using Telegram
+python3 bootstrap.py \
+  --notification-provider telegram \
+  --telegram-bot-token "$TELEGRAM_BOT_TOKEN" \
+  --telegram-chat-id "$TELEGRAM_CHAT_ID"
+
 # Persist skip behavior when webhook is intentionally not configured
 python3 bootstrap.py --always-skip-missing-webhook
 
-# Send a test embed and exit
+# Send a test notification and exit
 python3 bootstrap.py --test-webhook-embed
 ```
 
@@ -216,6 +228,14 @@ python3 aii/scripts/send_webhook_embed.py \
   --step-id step-2 \
   --step-title "Validate remote throttling" \
   --runtime "6m 12s"
+```
+
+Telegram uses the official Bot API `sendMessage` method. Configure:
+
+```dotenv
+codex_notification_provider=telegram
+codex_telegram_bot_token=<bot token from BotFather>
+codex_telegram_chat_id=<target chat id or @channelusername>
 ```
 
 ### Model Cache Refresh

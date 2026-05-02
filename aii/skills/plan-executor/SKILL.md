@@ -161,16 +161,19 @@ For likely long-running plan execution, assume webhook reporting is enabled by d
 Even if the plan was not initially judged long-running, if computed runtime exceeds the auto-notify threshold, send notification automatically when possible.
 
 Webhook source and missing-webhook gate:
-- check `.env` for `codex_webhook=...`
+- check `.env` for `codex_notification_provider=discord|telegram`; default to `discord` when unset
+- for Discord, check `.env` for `codex_webhook=...`
+- for Telegram, check `.env` for `codex_telegram_bot_token=...` and `codex_telegram_chat_id=...`
 - check `.env` for `codex_ignore_webhook_missing=true|false`
-- if no webhook is configured and `codex_ignore_webhook_missing` is not `true`, warn and halt execution until the user either:
-  - provides a webhook URL, or
+- if notification config for the selected provider is missing and `codex_ignore_webhook_missing` is not `true`, warn and halt execution until the user either:
+  - provides the missing provider config, or
   - explicitly confirms skipping webhook reporting for this run
 - if the user explicitly confirms they always want to skip this prompt in future runs, set `codex_ignore_webhook_missing=true` in `.env`
 
 Webhook payload style:
-- always use Discord embeds (not plain text content)
-- keep embeds concise, execution-focused, and low-noise
+- for Discord, use embeds (not plain text content)
+- for Telegram, use concise plain text through the Bot API `sendMessage` method
+- keep notifications concise, execution-focused, and low-noise
 
 Send webhook embed updates for:
 - plan start (once runtime begins)
