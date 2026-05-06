@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import shutil
+import subprocess
 import sys
 import textwrap
 from dataclasses import dataclass
@@ -316,8 +317,35 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def fetch_text(url: str) -> str:
     request = Request(url, headers={"User-Agent": "codex-optimizations-bootstrap"})
-    with urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8")
+    try:
+        with urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8")
+    except URLError as exc:
+        # Some Python distributions, including MSYS2 Python on Windows, can lack
+        # a complete CA trust chain even when the system curl works correctly.
+        fallback = fetch_text_via_curl(url)
+        if fallback is not None:
+            return fallback
+        raise exc
+
+
+def fetch_text_via_curl(url: str) -> str | None:
+    commands = (
+        ("curl", "-fsSL", url),
+        ("curl.exe", "-fsSL", url),
+    )
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        return completed.stdout
+    return None
 
 
 def _strip_comment(line: str) -> str:
