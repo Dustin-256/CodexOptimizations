@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Fetch/update cached aii setup script, then execute it."""
+"""Fetch/update cached aii setup script from the latest GitHub Release, then execute it."""
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -11,17 +12,22 @@ from urllib.request import Request, urlopen
 
 
 BASE_DIR = Path.cwd()
-RAW_BASE = "https://raw.githubusercontent.com/Dustin-256/CodexOptimizations/main"
+OWNER_REPO = "Dustin-256/CodexOptimizations"
+RAW_BASE = f"https://raw.githubusercontent.com/{OWNER_REPO}"
+RELEASES_API_URL = f"https://api.github.com/repos/{OWNER_REPO}/releases/latest"
+DEFAULT_REF = "main"
 REMOTE_SETUP_PATH = "aii/scripts/setup.py"
-REMOTE_VERSION_PATHS = ("aii/version.txt",)
 CACHE_SETUP_PATH = BASE_DIR / REMOTE_SETUP_PATH
+# Local cache stamp: records which release tag the cached setup script came from.
 CACHE_VERSION_PATH = BASE_DIR / "aii" / "version.txt"
+USER_AGENT = "codex-optimizations-bootstrap-launcher"
 
 
-def fetch_text_via_curl(url: str) -> str | None:
+def fetch_via_curl(url: str, *, accept: str | None = None) -> str | None:
+    header_args = ("-H", f"Accept: {accept}") if accept else ()
     commands = (
-        ("curl", "-fsSL", url),
-        ("curl.exe", "-fsSL", url),
+        ("curl", "-fsSL", *header_args, url),
+        ("curl.exe", "-fsSL", *header_args, url),
     )
     for command in commands:
         try:
@@ -37,16 +43,18 @@ def fetch_text_via_curl(url: str) -> str | None:
     return None
 
 
-def fetch_text(url: str) -> str:
-    request = Request(
-        url, headers={"User-Agent": "codex-optimizations-bootstrap-launcher"})
+def fetch_text(url: str, *, accept: str | None = None) -> str:
+    headers = {"User-Agent": USER_AGENT}
+    if accept:
+        headers["Accept"] = accept
+    request = Request(url, headers=headers)
     try:
         with urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8")
     except URLError as exc:
         # Some Python distributions (notably certain MSYS2 installs on Windows)
         # do not have a complete CA trust chain configured.
-        fallback = fetch_text_via_curl(url)
+        fallback = fetch_via_curl(url, accept=accept)
         if fallback is not None:
             return fallback
         raise exc
@@ -58,26 +66,24 @@ def read_local_version() -> str | None:
     return CACHE_VERSION_PATH.read_text(encoding="utf-8").strip() or None
 
 
-def fetch_remote_version() -> str | None:
-    for relative_path in REMOTE_VERSION_PATHS:
-        try:
-            value = fetch_text(f"{RAW_BASE}/{relative_path}").strip()
-        except URLError:
-            continue
-        if value:
-            return value
+def fetch_latest_release_tag() -> str | None:
+    """Return the tag_name of the latest GitHub Release, or None if unavailable."""
+    try:
+        raw = fetch_text(RELEASES_API_URL, accept="application/vnd.github+json")
+    except URLError:
+        return None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    tag = data.get("tag_name")
+    if isinstance(tag, str) and tag.strip():
+        return tag.strip()
     return None
-
-
-def parse_version_tag(tag: str | None) -> int:
-    if not tag:
-        return -1
-    cleaned = tag.strip()
-    if cleaned.startswith("v"):
-        cleaned = cleaned[1:]
-    if not cleaned.isdigit():
-        return -1
-    return int(cleaned)
 
 
 def write_cached_setup(setup_source: str, version_tag: str | None) -> None:
@@ -85,31 +91,40 @@ def write_cached_setup(setup_source: str, version_tag: str | None) -> None:
     CACHE_SETUP_PATH.write_text(setup_source, encoding="utf-8")
     if version_tag:
         CACHE_VERSION_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_VERSION_PATH.write_text(
-            version_tag.strip() + "\n", encoding="utf-8")
+        CACHE_VERSION_PATH.write_text(version_tag.strip() + "\n", encoding="utf-8")
+
+
+def fetch_setup_source(ref: str) -> str:
+    """Fetch setup.py at the given git ref, falling back to the default branch."""
+    setup_url = f"{RAW_BASE}/{ref}/{REMOTE_SETUP_PATH}"
+    try:
+        return fetch_text(setup_url)
+    except URLError:
+        if ref == DEFAULT_REF:
+            raise
+        # The release tag may not be servable yet; fall back to the default branch.
+        return fetch_text(f"{RAW_BASE}/{DEFAULT_REF}/{REMOTE_SETUP_PATH}")
 
 
 def ensure_cached_setup() -> None:
     local_version = read_local_version()
-    remote_version = fetch_remote_version()
+    remote_version = fetch_latest_release_tag()
 
-    should_update = False
-    if not CACHE_SETUP_PATH.exists():
-        should_update = True
-    elif remote_version is not None:
-        should_update = parse_version_tag(
-            remote_version) > parse_version_tag(local_version)
+    # Cache is valid only when the cached engine exists and matches the latest
+    # release tag. If the release API is unreachable, keep whatever is cached.
+    should_update = (not CACHE_SETUP_PATH.exists()) or (
+        remote_version is not None and remote_version != local_version
+    )
 
     if should_update:
-        setup_source = fetch_text(f"{RAW_BASE}/{REMOTE_SETUP_PATH}")
+        ref = remote_version or DEFAULT_REF
+        setup_source = fetch_setup_source(ref)
         write_cached_setup(setup_source, remote_version)
-        shown_version = remote_version or "unknown-version"
-        print(f"updated cached setup script ({shown_version})")
+        print(f"updated cached setup script ({remote_version or DEFAULT_REF})")
         return
 
     if CACHE_SETUP_PATH.exists():
-        shown_version = local_version or "unknown-version"
-        print(f"using cached setup script ({shown_version})")
+        print(f"using cached setup script ({local_version or 'unknown-version'})")
         return
 
     raise RuntimeError(

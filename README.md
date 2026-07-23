@@ -143,8 +143,10 @@ python3 init_repo.py
 ```
 
 This does one-time local contributor setup:
-- installs the managed `pre-push` version hook
+- removes the legacy managed `pre-push` version hook if an older checkout installed it
 - does not run bootstrap or scaffold files
+
+Releases are automated: pushing to `main` triggers `.github/workflows/release.yml`, which cuts a new GitHub Release with the next semantic version (patch bump). No manual version bump is needed.
 
 Typical workflow:
 1. Run `python3 bootstrap.py` in a target repository.
@@ -281,7 +283,7 @@ For Claude Code installs, the bootstrap writes `.claude/commands/fetch-models.md
 
 ## Notes
 
-- The bootstrap script fetches the cached setup engine from this repository's `main` branch unless the local cached version is already current.
+- The bootstrap script reads the latest GitHub Release tag and re-downloads the setup engine (pinned to that release tag) only when the cached copy is not already on that version. If the Releases API is unreachable, it keeps using the cached engine.
 - Existing `AGENTS.md` and `CLAUDE.md` are backed up before install when present.
 - If a target skill path in `~/.codex/skills` already exists and is not the expected symlink, `--force` is required.
 - Claude installs use project-scoped Claude skills under `.claude/skills/`.

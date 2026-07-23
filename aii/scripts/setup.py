@@ -43,7 +43,6 @@ SKILLS = (
 )
 SCRIPTS = (
     "send_webhook_embed.py",
-    "bump_version.py",
     "fetch_models.py",
 )
 CODEX_SKILLS_DIR = Path.home() / ".codex" / "skills"
@@ -98,6 +97,8 @@ GITIGNORE_BLOCK = "\n".join(
         "",
         "aii/metadata/*",
         "!aii/metadata/.gitkeep",
+        "",
+        "aii/version.txt",
         GITIGNORE_BLOCK_END,
     )
 )
@@ -187,7 +188,6 @@ Use it to define constraints, conventions, workflows, architecture rules, and an
 - Add architecture and coding standards specific to this project.
 - Add domain-specific terminology, behavior rules, and guardrails.
 """,
-    "aii/version.txt": "v7\n",
     "aii/interviews/.gitkeep": "",
     "aii/plans/.gitkeep": "",
     "aii/metadata/.gitkeep": "",
@@ -250,11 +250,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Project template type for instruction files. "
             "auto: infer from aftman.toml and rojo; generic: force generic; roblox: force Roblox."
         ),
-    )
-    parser.add_argument(
-        "--install-pre-push-hook",
-        action="store_true",
-        help="Install/update the managed git pre-push version bump hook (contributor workflow).",
     )
     parser.add_argument(
         "--force",
@@ -680,11 +675,6 @@ def build_scaffold_files(project_type: str, tool_name: str) -> dict[str, str]:
 
 def write_file(relative_path: str, content: str, force: bool) -> None:
     path = BASE_DIR / relative_path
-    if relative_path == "aii/version.txt":
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-        print(f"wrote {path}")
-        return
     if path.exists() and not force and relative_path not in ALWAYS_OVERWRITE_FILES:
         existing_content = path.read_text(encoding="utf-8")
         if existing_content == content:
@@ -696,92 +686,6 @@ def write_file(relative_path: str, content: str, force: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     print(f"wrote {path}")
-
-
-def build_pre_push_hook_script() -> str:
-    return "\n".join(
-        (
-            "#!/usr/bin/env bash",
-            "set -euo pipefail",
-            HOOK_MARKER_START,
-            'repo_root="$(git rev-parse --show-toplevel)"',
-            'cd "$repo_root"',
-            "",
-            'if [[ "${AII_SKIP_VERSION_BUMP:-}" == "1" ]]; then',
-            "  exit 0",
-            "fi",
-            "",
-            'if [[ ! -f "aii/scripts/bump_version.py" ]]; then',
-            '  echo "pre-push: missing aii/scripts/bump_version.py; run bootstrap first." >&2',
-            "  exit 1",
-            "fi",
-            "",
-            'if [[ -n "$(git status --porcelain -- aii/version.txt)" ]]; then',
-            '  echo "pre-push: aii/version.txt has uncommitted changes; commit or discard them before push." >&2',
-            "  exit 1",
-            "fi",
-            "",
-            "needs_bump=1",
-            "saw_ref=0",
-            "",
-            "while read -r local_ref local_sha remote_ref remote_sha; do",
-            "  saw_ref=1",
-            "  if [[ \"$local_sha\" == \"0000000000000000000000000000000000000000\" ]]; then",
-            "    continue",
-            "  fi",
-            "",
-            "  if [[ \"$remote_sha\" == \"0000000000000000000000000000000000000000\" ]]; then",
-            "    range=\"$local_sha\"",
-            "  else",
-            "    range=\"$remote_sha..$local_sha\"",
-            "  fi",
-            "",
-            "  if git diff-tree --no-commit-id --name-only -r $range -- aii/version.txt | grep -qx 'aii/version.txt'; then",
-            "    needs_bump=0",
-            "    break",
-            "  fi",
-            "done",
-            "",
-            "if [[ \"$saw_ref\" -eq 0 ]]; then",
-            "  if git diff-tree --no-commit-id --name-only -r HEAD -- aii/version.txt | grep -qx 'aii/version.txt'; then",
-            "    needs_bump=0",
-            "  fi",
-            "fi",
-            "",
-            "if [[ \"$needs_bump\" -eq 0 ]]; then",
-            "  exit 0",
-            "fi",
-            "",
-            "python3 aii/scripts/bump_version.py",
-            "git add aii/version.txt",
-            'echo "pre-push: bumped and staged aii/version.txt. Commit it, then push again." >&2',
-            "exit 1",
-            HOOK_MARKER_END,
-            "",
-        )
-    )
-
-
-def install_pre_push_hook(force: bool) -> None:
-    if not GIT_HOOKS_PATH.exists():
-        print("skipped pre-push hook install: .git/hooks not found")
-        return
-
-    new_script = build_pre_push_hook_script()
-    if PRE_PUSH_HOOK_PATH.exists():
-        existing = PRE_PUSH_HOOK_PATH.read_text(encoding="utf-8")
-        managed = HOOK_MARKER_START in existing and HOOK_MARKER_END in existing
-        if not managed and not force:
-            print(
-                "left existing .git/hooks/pre-push in place "
-                "(not managed by aii; re-run with --force to overwrite)"
-            )
-            return
-
-    PRE_PUSH_HOOK_PATH.write_text(new_script, encoding="utf-8")
-    current_mode = PRE_PUSH_HOOK_PATH.stat().st_mode
-    PRE_PUSH_HOOK_PATH.chmod(current_mode | 0o111)
-    print("installed managed .git/hooks/pre-push")
 
 
 def uninstall_pre_push_hook() -> None:
@@ -952,7 +856,6 @@ def install(
     install_skills: bool,
     project_type: str,
     tool_name: str,
-    install_pre_push_hook_enabled: bool,
 ) -> None:
     profile = TOOL_PROFILES[tool_name]
     files = build_scaffold_files(project_type, tool_name)
@@ -966,8 +869,9 @@ def install(
         write_file(relative_path, content, force=force)
 
     update_gitignore_for_install()
-    if install_pre_push_hook_enabled:
-        install_pre_push_hook(force=force)
+    # Transition cleanup: older installs shipped a pre-push version-bump hook.
+    # Releases are now automated via GitHub Actions, so remove any leftover hook.
+    uninstall_pre_push_hook()
     if install_skills and profile.install_local_skills:
         install_codex_skills(force=force)
 
@@ -1173,7 +1077,6 @@ def build_interactive_config(
     tool_name = "codex"
     project_type = "auto"
     force = False
-    install_pre_push_hook = False
     no_install_skills = False
     webhook = None
     notification_provider = existing_provider
@@ -1195,9 +1098,6 @@ def build_interactive_config(
             ],
         )
         force = prompt_confirm("Overwrite existing managed files if needed?", default=False)
-        install_pre_push_hook = prompt_confirm(
-            "Install the managed pre-push hook?", default=False
-        )
         if TOOL_PROFILES[tool_name].install_local_skills:
             no_install_skills = not prompt_confirm(
                 "Install Codex skill symlinks into ~/.codex/skills?", default=True
@@ -1235,9 +1135,6 @@ def build_interactive_config(
     ]
     if action == "install":
         summary_lines.append(f"Force overwrite: {'yes' if force else 'no'}")
-        summary_lines.append(
-            f"Install pre-push hook: {'yes' if install_pre_push_hook else 'no'}"
-        )
         if TOOL_PROFILES[tool_name].install_local_skills:
             summary_lines.append(
                 f"Install Codex symlinks: {'no' if no_install_skills else 'yes'}"
@@ -1266,7 +1163,6 @@ def build_interactive_config(
     return SimpleNamespace(
         tool=tool_name,
         project_type=project_type,
-        install_pre_push_hook=install_pre_push_hook,
         force=force,
         uninstall=action == "uninstall",
         no_install_skills=no_install_skills,
@@ -1434,7 +1330,6 @@ def main(argv: list[str] | None = None) -> None:
                 install_skills=not args.no_install_skills,
                 project_type=resolved_project_type,
                 tool_name=args.tool,
-                install_pre_push_hook_enabled=args.install_pre_push_hook,
             )
         send_webhook_report(
             provider=provider,

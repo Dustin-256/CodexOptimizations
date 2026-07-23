@@ -1,0 +1,61 @@
+name: release
+
+# Automated releases: every push to main cuts a new GitHub Release with the
+# next semantic version (patch bump). The release tag is the source of truth
+# that bootstrap.py reads to decide when to re-download the setup engine.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Serialize releases so two quick pushes cannot race on the same computed tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create release with next patch version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Latest published release tag, or empty if none exist yet.
+          latest="$(gh release view --json tagName --jq .tagName 2>/dev/null || true)"
+
+          if [[ -z "${latest}" ]]; then
+            next="v1.0.0"
+          else
+            core="${latest#v}"
+            IFS='.' read -r major minor patch <<< "${core}"
+            major="${major:-0}"
+            minor="${minor:-0}"
+            patch="${patch:-0}"
+            if [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ && "${patch}" =~ ^[0-9]+$ ]]; then
+              next="v${major}.${minor}.$((patch + 1))"
+            else
+              echo "latest release tag '${latest}' is not semver vMAJOR.MINOR.PATCH; seeding v1.0.0" >&2
+              next="v1.0.0"
+            fi
+          fi
+
+          echo "Previous release: ${latest:-none}"
+          echo "New release: ${next}"
+
+          # Tag the pushed commit and attach the setup engine as a release asset.
+          gh release create "${next}" \
+            --target "${GITHUB_SHA}" \
+            --title "${next}" \
+            --generate-notes \
+            aii/scripts/setup.py
