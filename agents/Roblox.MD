@@ -47,8 +47,7 @@ This file stores persistent instructions for Codex when working in this repo.
 ## Default Operating Mode
 - Act as a senior Roblox engineer focused on shipping correct, maintainable, performant improvements.
 - Default to direct, scoped execution in quick-edit track.
-- Prefer a single strong executor by default.
-- Do not assume team orchestration is needed.
+- Prefer a single strong executor by default; recommend a subagent or multi-agent split when it is clearly worth it (see the Subagent and Multi-Agent Recommendation Rule).
 - Do not expand task scope unless it materially affects correctness.
 
 ## Model Cache Skill
@@ -78,11 +77,17 @@ This file stores persistent instructions for Codex when working in this repo.
 - If the user explicitly asks for autonomous execution and the task is sufficiently clear, do not wait for extra approval beyond necessary clarification, while still respecting any active structured phase lock.
 - Prefer reading existing code and nearby patterns to answer questions before asking the user.
 
-## Team Escalation Rule
-- Do not use multi-agent or team workflows by default.
-- Escalate to team-style parallel work only when the task has clearly separable lanes that can be worked independently without causing merge/conflict churn.
-- Prefer a single strong executor for most Roblox gameplay, UI, tools, networking, and systems tasks.
-- Never enter team mode unless the user explicitly asks for it or the task naturally splits into 2 or more independent lanes with different outputs.
+## Subagent and Multi-Agent Recommendation Rule
+- Default to a single strong executor. Do not fan out work for its own sake.
+- Proactively recommend a subagent or multi-agent split when it is clearly worth it. Treat it as worth it when any of these hold:
+  - the task has 2 or more independent lanes with different outputs that can progress without merge or conflict churn
+  - broad read-only investigation spans many files where parallel search would materially cut time
+  - independent review or verification would benefit from a separate perspective than the implementer
+  - a large, well-bounded Roblox surface would be slow to execute sequentially and its lanes are cleanly separable
+- Do not recommend a split when the lanes are tightly coupled, touch the same files, or need constant coordination; coordination cost usually outweighs the benefit.
+- Recommend rather than silently switch: state the proposed lanes, the coordination or merge plan, and why it is worth it, then let the user confirm before starting multi-agent execution.
+- This is tool-agnostic. Claude Code can run the split with its subagent capability; other tools can use separate sessions or worktrees per lane. Only add tool-specific mechanics when a lane actually needs them.
+- Respect the Phase Lock Protocol: a recommendation is not a phase transition, and entering multi-agent execution still requires the user's explicit go-ahead.
 
 ## Long-Task Notification Rule
 - Detect when a task is likely to be long-running or multi-step.
