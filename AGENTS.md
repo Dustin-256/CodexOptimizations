@@ -89,6 +89,16 @@ This file stores persistent instructions for Codex when working in this repo.
 - This is tool-agnostic. Claude Code can run the split with its subagent capability; other tools can use separate sessions or worktrees per lane. Only add tool-specific mechanics when a lane actually needs them.
 - Respect the Phase Lock Protocol: a recommendation is not a phase transition, and entering multi-agent execution still requires the user's explicit go-ahead.
 
+## Reasoning-Level Routing Rule
+- Detect monotonous, deterministic, or tool-driven subtasks that require little judgment, and route them to the fastest, lowest-cost model and reasoning level that can execute them reliably.
+- When spawning subagents, select the model and reasoning level for each subtask instead of automatically inheriting the strongest available configuration.
+- Keep cheap mechanical work separate from analysis. For example:
+  - downloading YouTube videos, running an existing transcription repository, converting files, and collecting outputs should normally use a fast, inexpensive worker with minimal reasoning
+  - analyzing transcripts, comparing claims, drawing conclusions, and producing a synthesis should use a reasoning level appropriate to the analytical complexity
+- Prefer deterministic scripts and existing tools for repeatable work instead of spending model tokens reproducing programmatic operations.
+- Escalate a low-reasoning worker's task to a more capable handler when execution fails, output is missing or malformed, source material is ambiguous, or the task begins to require judgment beyond the worker's assigned level.
+- Optimize total token usage, latency, and cost while preserving correctness, verification, and a clear escalation path. Do not use a premium reasoning model for work that a basic worker or program can reliably complete.
+
 ## Long-Task Notification Rule
 - Detect when a task is likely to be long-running or multi-step.
 - Consider a task long-running when it likely requires broad analysis, multi-file implementation, repeated verification, or multiple execution iterations.
