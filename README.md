@@ -159,7 +159,7 @@ Typical workflow:
 - `--tool codex|claude`:
   choose the tool profile to install; defaults to `codex`
 - `--force`:
-  overwrite existing scaffold files and replace existing skill links
+  overwrite existing scaffold files and replace existing skill links; without it, conflicts are preserved with warnings
 - `--no-install-skills`:
   skip `~/.codex/skills` symlinks for Codex installs
 - `--uninstall`:
@@ -284,7 +284,7 @@ For Claude Code installs, the bootstrap writes `.claude/commands/fetch-models.md
 ## Notes
 
 - The bootstrap script reads the latest GitHub Release tag and re-downloads the setup engine (pinned to that release tag) only when the cached copy is not already on that version. If the Releases API is unreachable, it keeps using the cached engine.
-- Existing `AGENTS.md` and `CLAUDE.md` are backed up before install when present.
-- If a target skill path in `~/.codex/skills` already exists and is not the expected symlink, `--force` is required.
+- Existing `AGENTS.md` and `CLAUDE.md` are backed up before a forced replacement.
+- Without `--force`, differing scaffold files and conflicting targets in `~/.codex/skills` are preserved with warnings while installation continues.
 - Claude installs use project-scoped Claude skills under `.claude/skills/`.
 - Keep `.env` gitignored so `codex_webhook` and `codex_ignore_webhook_missing` remain local.

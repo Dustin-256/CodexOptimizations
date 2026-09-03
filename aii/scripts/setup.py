@@ -676,13 +676,14 @@ def build_scaffold_files(project_type: str, tool_name: str) -> dict[str, str]:
 def write_file(relative_path: str, content: str, force: bool) -> None:
     path = BASE_DIR / relative_path
     if path.exists() and not force and relative_path not in ALWAYS_OVERWRITE_FILES:
-        existing_content = path.read_text(encoding="utf-8")
-        if existing_content == content:
+        if path.is_file() and path.read_text(encoding="utf-8") == content:
             print(f"kept {path} (already up to date)")
             return
-        raise FileExistsError(
-            f"{relative_path} already exists. Re-run with --force to overwrite."
+        print(
+            f"warning: skipped {path} because it already exists; "
+            "re-run with --force to overwrite"
         )
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     print(f"wrote {path}")
@@ -790,9 +791,11 @@ def install_codex_skills(force: bool) -> None:
             if target.is_symlink() and target.resolve() == source.resolve():
                 continue
             if not force:
-                raise FileExistsError(
-                    f"{target} already exists. Re-run with --force to overwrite."
+                print(
+                    f"warning: skipped skill link {target} because it already exists; "
+                    "re-run with --force to overwrite"
                 )
+                continue
             if target.is_dir() and not target.is_symlink():
                 shutil.rmtree(target)
             else:
@@ -860,9 +863,9 @@ def install(
     profile = TOOL_PROFILES[tool_name]
     files = build_scaffold_files(project_type, tool_name)
 
-    if profile.name == "codex":
+    if force and profile.name == "codex":
         backup_agents()
-    if profile.name == "claude":
+    if force and profile.name == "claude":
         backup_claude()
 
     for relative_path, content in files.items():
